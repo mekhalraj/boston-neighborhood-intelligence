@@ -64,7 +64,6 @@ POPULATION = {
     "West End": 5014,
     "West Roxbury": 33906,
     # Additional neighborhoods from GeoJSON (ACS/Census estimates)
-    "Harbor Island": 0,
     "South Boston Waterfront": 5300,
 }
 
@@ -91,7 +90,8 @@ NAME_ALIASES = {
     "South Boston / South Boston Waterfront": "South Boston",
     "Longwood Medical and Academic Area": "Longwood",
     "Longwood Medical Area": "Longwood",
-    "Harbor Islands": "Harbor Island",
+    "Harbor Islands": None,  # exclude -- no residential population
+    "Harbor Island": None,
 }
 
 
