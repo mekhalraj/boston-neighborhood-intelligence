@@ -375,7 +375,7 @@
 <!-- Header -->
 <header class="header">
     <h1>How Safe Is Your Boston Neighborhood?</h1>
-    <p class="subtitle">An interactive look at crime, 311 complaints, crashes, and building violations across 23 Boston neighborhoods — built on city data from Analyze Boston.</p>
+    <p class="subtitle">An interactive look at crime, 311 complaints, crashes, and building violations across Boston's neighborhoods — built on city data from Analyze Boston.</p>
     <div class="toggles" id="toggles">
         <button class="toggle-btn active" data-metric="overall">Overall Safety</button>
         <button class="toggle-btn" data-metric="crime">Crime</button>
@@ -475,7 +475,7 @@
                 &bull; 311 Service Requests (2025)<br>
                 &bull; Vision Zero Crash Records (2023&ndash;2025)<br>
                 &bull; Building &amp; Property Violations (2023&ndash;2025)<br>
-                &bull; Boston Neighborhood Boundaries (GeoJSON)
+                &bull; Boston Neighborhood Boundaries (BPDA, 2020 Census Tract-based)
             </div>
         </details>
         <details>
@@ -487,15 +487,16 @@
                 &bull; 311 Complaints: 25%<br>
                 &bull; Crashes: 20%<br>
                 &bull; Violations: 15%<br><br>
-                Population estimates are from the 2020 Census / American Community Survey.
+                Population estimates are from the Boston Planning &amp; Development Agency (BPDA) Research Division, January 2025. Sub-area estimates from ACS/Census.
             </div>
         </details>
         <details>
             <summary>Caveats &amp; Limitations</summary>
             <div class="detail-content">
-                &bull; Neighborhoods with very small residential populations (Bay Village, West End, South Boston Waterfront) may show exaggerated per-capita rates due to high daytime activity relative to resident count. These are marked with an asterisk (*).<br>
+                &bull; Neighborhoods with very small residential populations (Harbor Island, South Boston Waterfront, Longwood, West End) may show exaggerated per-capita rates due to high daytime activity relative to resident count. These are marked with an asterisk (*).<br>
                 &bull; Crime and 311 data reflect <em>reported</em> incidents, not necessarily all incidents.<br>
-                &bull; Neighborhood boundaries are approximations. Some records near borders may be assigned to adjacent neighborhoods.<br>
+                &bull; Neighborhood boundaries are defined by the BPDA using 2020 Census tract approximations. Some records near borders may be assigned to adjacent neighborhoods.<br>
+                &bull; This dashboard covers the City of Boston only. Surrounding cities (Cambridge, Brookline, Somerville) are separate municipalities and not included.<br>
                 &bull; This dashboard is for informational purposes and should not be the sole basis for housing or safety decisions.
             </div>
         </details>

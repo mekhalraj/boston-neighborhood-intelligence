@@ -31,36 +31,41 @@ RESOURCES = {
 }
 
 NEIGHBORHOODS_GEOJSON_URL = (
-    "https://data.boston.gov/dataset/bf1a7b50-4c72-4637-b0fa-11d632e3aff1/"
-    "resource/e5849875-a6f6-4c9c-9d8a-5048b0fbd03e/download/"
-    "boston_neighborhood_boundaries.geojson"
+    "https://data.boston.gov/dataset/boston-neighborhood-boundaries-approximated-by-2020-census-tracts/"
+    "resource/42a271c9-486d-4f9e-adc2-63e4bf47fe3e/download/"
+    "boston_neighborhood_boundaries_approximated_by_2020_census_tracts.geojson"
 )
 
-# 2020 Census / ACS approximate populations
+# BPDA Research Division, January 2025 estimates (primary)
+# ACS/Census estimates for sub-areas not in BPDA data (supplementary)
+# Source: Boston in Context: Neighborhoods (bostonplans.org)
 POPULATION = {
-    "Allston": 29400,
-    "Back Bay": 26200,
-    "Bay Village": 1500,
-    "Beacon Hill": 10200,
-    "Brighton": 45000,
-    "Charlestown": 18900,
-    "Chinatown": 8900,
-    "Dorchester": 128500,
-    "Downtown": 13800,
-    "East Boston": 47800,
-    "Fenway": 39500,
-    "Hyde Park": 37400,
-    "Jamaica Plain": 41200,
-    "Mattapan": 27300,
-    "Mission Hill": 18100,
-    "North End": 10600,
-    "Roslindale": 33600,
-    "Roxbury": 55800,
-    "South Boston": 36300,
+    # BPDA 2025 neighborhoods
+    "Allston": 31810,
+    "Back Bay": 18983,
+    "Beacon Hill": 9327,
+    "Brighton": 55869,
+    "Charlestown": 19232,
+    "Chinatown": 6371,
+    "Dorchester": 123056,
+    "Downtown": 15752,
+    "East Boston": 46892,
+    "Fenway": 42351,
+    "Hyde Park": 33469,
+    "Jamaica Plain": 40083,
+    "Longwood": 5765,
+    "Mattapan": 26796,
+    "Mission Hill": 19076,
+    "North End": 10080,
+    "Roslindale": 35479,
+    "Roxbury": 53821,
+    "South Boston": 38263,
+    "South End": 35287,
+    "West End": 5014,
+    "West Roxbury": 33906,
+    # Additional neighborhoods from GeoJSON (ACS/Census estimates)
+    "Harbor Island": 0,
     "South Boston Waterfront": 5300,
-    "South End": 34100,
-    "West End": 4900,
-    "West Roxbury": 34500,
 }
 
 # Weights for overall safety score
@@ -78,18 +83,15 @@ YEAR_MAX = 2025
 # ---------------------------------------------------------------------------
 
 # Maps variant names found in datasets to canonical names matching POPULATION keys
+# With 34 individual neighborhoods, most GeoJSON names are canonical.
+# Only map 311/crime data variants that don't match GeoJSON names.
 NAME_ALIASES = {
-    # Common variants
-    "South Boston Waterfront": "South Boston Waterfront",
-    "Seaport": "South Boston Waterfront",
     "Downtown / Financial District": "Downtown",
-    "Financial District": "Downtown",
-    "Longwood Medical and Academic Area": "Fenway",
-    "Longwood Medical Area": "Fenway",
-    "Longwood": "Fenway",
-    "Leather District": "Downtown",
-    "Harbor Islands": None,  # exclude
-    "West End": "West End",
+    "Seaport": "South Boston Waterfront",
+    "South Boston / South Boston Waterfront": "South Boston",
+    "Longwood Medical and Academic Area": "Longwood",
+    "Longwood Medical Area": "Longwood",
+    "Harbor Islands": "Harbor Island",
 }
 
 
@@ -195,8 +197,8 @@ def download_geojson():
 
     gdf = gpd.GeoDataFrame.from_features(r.json()["features"], crs="EPSG:4326")
     # Keep original name for reference, add canonical name
-    print(f"  Neighborhoods found: {sorted(gdf['name'].unique())}")
-    gdf["canonical_name"] = gdf["name"].apply(normalize_neighborhood)
+    print(f"  Neighborhoods found: {sorted(gdf['neighborhood'].unique())}")
+    gdf["canonical_name"] = gdf["neighborhood"].apply(normalize_neighborhood)
     gdf = gdf[gdf["canonical_name"].notna()].copy()
     print(f"  Canonical neighborhoods: {sorted(gdf['canonical_name'].unique())}")
     return gdf, r.json()
@@ -492,7 +494,7 @@ def aggregate_311(df):
     result = {}
 
     for hood, group in df.groupby("neighborhood"):
-        pop = POPULATION.get(hood, 1)
+        pop = POPULATION.get(hood, 1) or 1  # guard against 0 population
         total = len(group)
 
         # Top categories
@@ -535,7 +537,7 @@ def aggregate_crime(df):
     result = {}
 
     for hood, group in df.groupby("neighborhood"):
-        pop = POPULATION.get(hood, 1)
+        pop = POPULATION.get(hood, 1) or 1  # guard against 0 population
         total = len(group)
 
         # Top offense groups
@@ -589,7 +591,7 @@ def aggregate_crashes(df):
     result = {}
 
     for hood, group in df.groupby("neighborhood"):
-        pop = POPULATION.get(hood, 1)
+        pop = POPULATION.get(hood, 1) or 1  # guard against 0 population
         total = len(group)
 
         # By mode type
@@ -629,7 +631,7 @@ def aggregate_violations(df):
     result = {}
 
     for hood, group in df.groupby("neighborhood"):
-        pop = POPULATION.get(hood, 1)
+        pop = POPULATION.get(hood, 1) or 1  # guard against 0 population
         total = len(group)
 
         # Top violation descriptions
@@ -707,7 +709,7 @@ def compute_safety_scores(agg_311, agg_crime, agg_crashes, agg_violations):
     # Add metadata
     for hood in all_hoods:
         scores[hood]["population"] = POPULATION[hood]
-        scores[hood]["small_pop_warning"] = POPULATION[hood] < SMALL_POP_THRESHOLD
+        scores[hood]["small_pop_warning"] = POPULATION.get(hood, 0) < SMALL_POP_THRESHOLD
         scores[hood]["crime_count"] = agg_crime.get(hood, {}).get("total", 0)
         scores[hood]["crime_per_1000"] = agg_crime.get(hood, {}).get("per_1000", 0)
         scores[hood]["complaint_count"] = agg_311.get(hood, {}).get("total", 0)
@@ -733,7 +735,7 @@ def enrich_geojson(raw_geojson, scores):
     """Embed safety scores into GeoJSON feature properties."""
     print("Enriching GeoJSON with scores...")
     for feature in raw_geojson["features"]:
-        name = feature["properties"].get("name", "")
+        name = feature["properties"].get("neighborhood", "")
         canonical = normalize_neighborhood(name)
         if canonical and canonical in scores:
             feature["properties"].update(scores[canonical])
