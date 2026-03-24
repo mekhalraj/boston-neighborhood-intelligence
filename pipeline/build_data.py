@@ -494,7 +494,7 @@ def aggregate_311(df):
     result = {}
 
     for hood, group in df.groupby("neighborhood"):
-        pop = POPULATION.get(hood, 1) or 1  # guard against 0 population
+        pop = POPULATION.get(hood, 0)
         total = len(group)
 
         # Top categories
@@ -522,7 +522,7 @@ def aggregate_311(df):
 
         result[hood] = {
             "total": total,
-            "per_1000": round(total / pop * 1000, 1),
+            "per_1000": round(total / pop * 1000, 1) if pop > 0 else 0,
             "top_topics": top_topics,
             "by_month": dict(sorted(by_month.items())),
             "avg_response_hours": avg_response,
@@ -537,7 +537,7 @@ def aggregate_crime(df):
     result = {}
 
     for hood, group in df.groupby("neighborhood"):
-        pop = POPULATION.get(hood, 1) or 1  # guard against 0 population
+        pop = POPULATION.get(hood, 0)
         total = len(group)
 
         # Top offense groups
@@ -574,7 +574,7 @@ def aggregate_crime(df):
 
         result[hood] = {
             "total": total,
-            "per_1000": round(total / pop * 1000, 1),
+            "per_1000": round(total / pop * 1000, 1) if pop > 0 else 0,
             "top_offenses": top_offenses,
             "by_hour": by_hour,
             "by_day": by_day,
@@ -591,7 +591,7 @@ def aggregate_crashes(df):
     result = {}
 
     for hood, group in df.groupby("neighborhood"):
-        pop = POPULATION.get(hood, 1) or 1  # guard against 0 population
+        pop = POPULATION.get(hood, 0)
         total = len(group)
 
         # By mode type
@@ -614,7 +614,7 @@ def aggregate_crashes(df):
 
         result[hood] = {
             "total": total,
-            "per_1000": round(total / pop * 1000, 1),
+            "per_1000": round(total / pop * 1000, 1) if pop > 0 else 0,
             "pedestrian": pedestrian,
             "cyclist": cyclist,
             "motor_vehicle": mv,
@@ -631,7 +631,7 @@ def aggregate_violations(df):
     result = {}
 
     for hood, group in df.groupby("neighborhood"):
-        pop = POPULATION.get(hood, 1) or 1  # guard against 0 population
+        pop = POPULATION.get(hood, 0)
         total = len(group)
 
         # Top violation descriptions
@@ -646,7 +646,7 @@ def aggregate_violations(df):
 
         result[hood] = {
             "total": total,
-            "per_1000": round(total / pop * 1000, 1),
+            "per_1000": round(total / pop * 1000, 1) if pop > 0 else 0,
             "top_violations": top_violations,
         }
 
