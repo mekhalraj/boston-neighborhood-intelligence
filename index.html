@@ -1,0 +1,1139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Boston Neighborhood Safety Map</title>
+    <meta name="description" content="Interactive safety dashboard for Boston neighborhoods. Explore crime, 311 complaints, crashes, and violations data across 23 neighborhoods.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #f8f6f2;
+            --card: #ffffff;
+            --text: #1a1a1a;
+            --text-secondary: #64748b;
+            --border: #e2e8f0;
+            --color-overall: #2563eb;
+            --color-crime: #dc4a3a;
+            --color-311: #d97706;
+            --color-crashes: #0d9488;
+            --color-violations: #7c3aed;
+            --shadow: 0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.06);
+            --shadow-lg: 0 4px 12px rgba(0,0,0,0.1);
+        }
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.6;
+        }
+        h1, h2, h3, h4 { font-family: 'Playfair Display', Georgia, serif; font-weight: 700; line-height: 1.2; }
+
+        /* Header */
+        .header {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 2.5rem 2rem 1rem;
+            text-align: center;
+        }
+        .header h1 { font-size: 2.4rem; margin-bottom: 0.5rem; }
+        .header .subtitle {
+            color: var(--text-secondary);
+            font-size: 1.05rem;
+            max-width: 600px;
+            margin: 0 auto 1.5rem;
+        }
+
+        /* Toggles */
+        .toggles {
+            display: flex;
+            justify-content: center;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+            margin-bottom: 1.5rem;
+        }
+        .toggle-btn {
+            padding: 0.5rem 1.2rem;
+            border: 2px solid var(--border);
+            border-radius: 999px;
+            background: var(--card);
+            font-family: 'DM Sans', sans-serif;
+            font-size: 0.9rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            color: var(--text-secondary);
+        }
+        .toggle-btn:hover { border-color: #94a3b8; }
+        .toggle-btn.active { color: #fff; border-color: transparent; }
+        .toggle-btn[data-metric="overall"].active { background: var(--color-overall); }
+        .toggle-btn[data-metric="crime"].active { background: var(--color-crime); }
+        .toggle-btn[data-metric="complaints"].active { background: var(--color-311); }
+        .toggle-btn[data-metric="crashes"].active { background: var(--color-crashes); }
+        .toggle-btn[data-metric="violations"].active { background: var(--color-violations); }
+
+        /* Map + Sidebar */
+        .map-container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 0 2rem;
+            display: grid;
+            grid-template-columns: 1fr 380px;
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+        #map {
+            height: 65vh;
+            min-height: 450px;
+            border-radius: 12px;
+            box-shadow: var(--shadow);
+            position: relative;
+        }
+
+        /* Map legend */
+        .map-legend {
+            position: absolute;
+            bottom: 24px;
+            left: 16px;
+            background: rgba(255,255,255,0.95);
+            border-radius: 8px;
+            padding: 10px 14px;
+            box-shadow: var(--shadow);
+            z-index: 2;
+            font-size: 0.8rem;
+        }
+        .legend-title { font-weight: 700; margin-bottom: 6px; }
+        .legend-bar {
+            width: 180px;
+            height: 12px;
+            border-radius: 6px;
+            background: linear-gradient(to right, #d7191c, #f59e0b, #fbbf24, #34d399, #2563eb);
+            margin-bottom: 4px;
+        }
+        .legend-labels { display: flex; justify-content: space-between; font-size: 0.75rem; color: var(--text-secondary); }
+
+        /* Sidebar */
+        .sidebar {
+            height: 65vh;
+            min-height: 450px;
+            overflow-y: auto;
+            background: var(--card);
+            border-radius: 12px;
+            box-shadow: var(--shadow);
+            padding: 1.2rem;
+        }
+        .sidebar h3 { font-size: 1.1rem; margin-bottom: 0.8rem; }
+
+        /* Ranking list */
+        .rank-item {
+            display: flex;
+            align-items: center;
+            gap: 0.7rem;
+            padding: 0.6rem 0.5rem;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: background 0.15s;
+        }
+        .rank-item:hover { background: #f1f5f9; }
+        .rank-number {
+            font-weight: 700;
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            width: 26px;
+            text-align: right;
+            flex-shrink: 0;
+        }
+        .rank-name { flex: 1; font-weight: 500; font-size: 0.95rem; }
+        .rank-score {
+            font-weight: 700;
+            font-size: 0.85rem;
+            padding: 0.2rem 0.6rem;
+            border-radius: 999px;
+            color: #fff;
+        }
+        .rank-pop-warning {
+            font-size: 0.7rem;
+            color: var(--text-secondary);
+            font-style: italic;
+        }
+
+        /* Detail panel */
+        .detail-panel { display: none; }
+        .detail-panel.active { display: block; }
+        .rankings-list.hidden { display: none; }
+        .back-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.3rem;
+            font-size: 0.85rem;
+            color: var(--color-overall);
+            cursor: pointer;
+            font-weight: 600;
+            margin-bottom: 0.8rem;
+            border: none;
+            background: none;
+            font-family: inherit;
+        }
+        .back-btn:hover { text-decoration: underline; }
+        .detail-header { display: flex; align-items: center; gap: 0.8rem; margin-bottom: 1rem; }
+        .detail-header h3 { font-size: 1.3rem; margin: 0; }
+        .detail-score-badge {
+            font-size: 1.5rem;
+            font-weight: 900;
+            font-family: 'DM Sans', sans-serif;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0.6rem;
+            margin-bottom: 1rem;
+        }
+        .stat-card {
+            background: var(--bg);
+            border-radius: 8px;
+            padding: 0.6rem 0.8rem;
+        }
+        .stat-label { font-size: 0.75rem; color: var(--text-secondary); font-weight: 500; }
+        .stat-value { font-size: 1.1rem; font-weight: 700; }
+        .stat-sub { font-size: 0.7rem; color: var(--text-secondary); }
+
+        .detail-section { margin-bottom: 1rem; }
+        .detail-section h4 { font-size: 0.95rem; margin-bottom: 0.5rem; }
+        .detail-list { list-style: none; }
+        .detail-list li {
+            display: flex;
+            justify-content: space-between;
+            padding: 0.25rem 0;
+            font-size: 0.85rem;
+            border-bottom: 1px solid var(--border);
+        }
+        .detail-list li:last-child { border-bottom: none; }
+        .detail-list .count { font-weight: 600; color: var(--text-secondary); }
+
+        .chart-container { position: relative; height: 220px; margin-bottom: 1rem; }
+        .chart-container-sm { position: relative; height: 160px; margin-bottom: 1rem; }
+
+        /* Comparison section */
+        .section {
+            max-width: 1400px;
+            margin: 0 auto 2rem;
+            padding: 0 2rem;
+        }
+        .section-card {
+            background: var(--card);
+            border-radius: 12px;
+            box-shadow: var(--shadow);
+            padding: 2rem;
+        }
+        .section-card h2 { font-size: 1.5rem; margin-bottom: 0.3rem; }
+        .section-desc { color: var(--text-secondary); margin-bottom: 1.5rem; font-size: 0.95rem; }
+
+        .comparison-selectors {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+            flex-wrap: wrap;
+        }
+        .comparison-selectors select {
+            padding: 0.5rem 1rem;
+            border: 2px solid var(--border);
+            border-radius: 8px;
+            font-family: inherit;
+            font-size: 0.9rem;
+            background: var(--card);
+            cursor: pointer;
+            min-width: 200px;
+        }
+        .comparison-body {
+            display: grid;
+            grid-template-columns: 300px 1fr;
+            gap: 2rem;
+            align-items: start;
+        }
+        .comparison-stats {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0.8rem;
+        }
+        .comp-stat {
+            background: var(--bg);
+            border-radius: 8px;
+            padding: 0.8rem 1rem;
+        }
+        .comp-stat-label { font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 0.2rem; }
+        .comp-stat-values { display: flex; gap: 1rem; }
+        .comp-stat-val { font-weight: 700; font-size: 1rem; }
+
+        /* Ranking table */
+        .table-wrapper { overflow-x: auto; }
+        table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+        thead th {
+            text-align: left;
+            padding: 0.7rem 0.8rem;
+            font-weight: 600;
+            color: var(--text-secondary);
+            border-bottom: 2px solid var(--border);
+            cursor: pointer;
+            white-space: nowrap;
+            user-select: none;
+        }
+        thead th:hover { color: var(--text); }
+        thead th .sort-arrow { font-size: 0.7rem; margin-left: 0.3rem; }
+        tbody tr {
+            border-bottom: 1px solid var(--border);
+            cursor: pointer;
+            transition: background 0.15s;
+        }
+        tbody tr:hover { background: #f8fafc; }
+        td { padding: 0.6rem 0.8rem; }
+        td.score-cell {
+            font-weight: 700;
+            border-radius: 4px;
+        }
+
+        /* Findings */
+        .findings-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 1rem;
+        }
+        .finding-card {
+            background: var(--bg);
+            border-radius: 8px;
+            padding: 1.2rem;
+            border-left: 4px solid var(--color-overall);
+        }
+        .finding-card h4 { font-size: 0.95rem; margin-bottom: 0.3rem; }
+        .finding-stat { font-size: 1.8rem; font-weight: 900; font-family: 'DM Sans', sans-serif; margin-bottom: 0.3rem; }
+        .finding-desc { font-size: 0.85rem; color: var(--text-secondary); }
+
+        /* Methodology */
+        .methodology details {
+            margin-bottom: 0.5rem;
+        }
+        .methodology summary {
+            cursor: pointer;
+            font-weight: 600;
+            padding: 0.5rem 0;
+            font-size: 0.95rem;
+        }
+        .methodology .detail-content {
+            padding: 0.5rem 0 0.5rem 1rem;
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+            line-height: 1.7;
+        }
+
+        /* Footer */
+        .footer {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 2rem;
+            text-align: center;
+            color: var(--text-secondary);
+            font-size: 0.85rem;
+            border-top: 1px solid var(--border);
+        }
+        .footer a { color: var(--color-overall); text-decoration: none; }
+        .footer a:hover { text-decoration: underline; }
+
+        /* Tooltip */
+        .maplibregl-popup-content {
+            padding: 8px 12px !important;
+            border-radius: 8px !important;
+            box-shadow: var(--shadow-lg) !important;
+            font-family: 'DM Sans', sans-serif !important;
+            font-size: 0.85rem !important;
+        }
+        .tooltip-name { font-weight: 700; font-size: 0.95rem; }
+        .tooltip-score { font-weight: 600; }
+
+        /* Mobile */
+        @media (max-width: 768px) {
+            .header { padding: 1.5rem 1rem 0.5rem; }
+            .header h1 { font-size: 1.6rem; }
+            .map-container {
+                grid-template-columns: 1fr;
+                padding: 0 1rem;
+            }
+            #map { height: 50vh; min-height: 300px; }
+            .sidebar { height: auto; max-height: 60vh; }
+            .section { padding: 0 1rem; }
+            .section-card { padding: 1.2rem; }
+            .comparison-body { grid-template-columns: 1fr; }
+            .comparison-stats { grid-template-columns: 1fr; }
+            .table-wrapper { margin: 0 -1rem; padding: 0 1rem; }
+        }
+    </style>
+</head>
+<body>
+
+<!-- Header -->
+<header class="header">
+    <h1>How Safe Is Your Boston Neighborhood?</h1>
+    <p class="subtitle">An interactive look at crime, 311 complaints, crashes, and building violations across 23 Boston neighborhoods — built on city data from Analyze Boston.</p>
+    <div class="toggles" id="toggles">
+        <button class="toggle-btn active" data-metric="overall">Overall Safety</button>
+        <button class="toggle-btn" data-metric="crime">Crime</button>
+        <button class="toggle-btn" data-metric="complaints">311 Complaints</button>
+        <button class="toggle-btn" data-metric="crashes">Crashes</button>
+        <button class="toggle-btn" data-metric="violations">Violations</button>
+    </div>
+</header>
+
+<!-- Map + Sidebar -->
+<div class="map-container">
+    <div id="map">
+        <div class="map-legend">
+            <div class="legend-title">Safety Score</div>
+            <div class="legend-bar"></div>
+            <div class="legend-labels">
+                <span>0 — Less Safe</span>
+                <span>100 — Safer</span>
+            </div>
+        </div>
+    </div>
+    <div class="sidebar" id="sidebar">
+        <div class="rankings-list" id="rankingsList">
+            <h3>Neighborhood Rankings</h3>
+            <div id="rankingsContent"></div>
+        </div>
+        <div class="detail-panel" id="detailPanel">
+            <button class="back-btn" id="backBtn">&larr; All neighborhoods</button>
+            <div id="detailContent"></div>
+        </div>
+    </div>
+</div>
+
+<!-- Comparison -->
+<div class="section">
+    <div class="section-card">
+        <h2>Compare Neighborhoods</h2>
+        <p class="section-desc">Select two neighborhoods to see how they stack up.</p>
+        <div class="comparison-selectors">
+            <select id="compare1"><option value="">Choose a neighborhood...</option></select>
+            <select id="compare2"><option value="">Choose a neighborhood...</option></select>
+        </div>
+        <div class="comparison-body">
+            <div class="chart-container" id="comparisonChartWrap">
+                <canvas id="comparisonChart"></canvas>
+            </div>
+            <div class="comparison-stats" id="comparisonStats"></div>
+        </div>
+    </div>
+</div>
+
+<!-- Ranking Table -->
+<div class="section">
+    <div class="section-card">
+        <h2>Full Rankings</h2>
+        <p class="section-desc">Click a column to sort. Click a row to fly to that neighborhood on the map.</p>
+        <div class="table-wrapper">
+            <table id="rankingTable">
+                <thead>
+                    <tr>
+                        <th data-sort="rank">Rank <span class="sort-arrow"></span></th>
+                        <th data-sort="name">Neighborhood <span class="sort-arrow"></span></th>
+                        <th data-sort="overall_score">Overall <span class="sort-arrow"></span></th>
+                        <th data-sort="crime_score">Crime <span class="sort-arrow"></span></th>
+                        <th data-sort="complaints_score">311 <span class="sort-arrow"></span></th>
+                        <th data-sort="crashes_score">Crashes <span class="sort-arrow"></span></th>
+                        <th data-sort="violations_score">Violations <span class="sort-arrow"></span></th>
+                        <th data-sort="population">Population <span class="sort-arrow"></span></th>
+                    </tr>
+                </thead>
+                <tbody id="rankingTableBody"></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Findings -->
+<div class="section">
+    <div class="section-card">
+        <h2>Interesting Findings</h2>
+        <p class="section-desc">Notable patterns from the data.</p>
+        <div class="findings-grid" id="findings"></div>
+    </div>
+</div>
+
+<!-- Methodology -->
+<div class="section">
+    <div class="section-card methodology">
+        <h2>Methodology &amp; Data Sources</h2>
+        <p class="section-desc">How we built this dashboard.</p>
+        <details>
+            <summary>Data Sources</summary>
+            <div class="detail-content">
+                All data comes from <a href="https://data.boston.gov" target="_blank">Analyze Boston</a> (data.boston.gov), the City of Boston's open data portal.<br><br>
+                <strong>Datasets used:</strong><br>
+                &bull; Crime Incident Reports (2023&ndash;2025)<br>
+                &bull; 311 Service Requests (2025)<br>
+                &bull; Vision Zero Crash Records (2023&ndash;2025)<br>
+                &bull; Building &amp; Property Violations (2023&ndash;2025)<br>
+                &bull; Boston Neighborhood Boundaries (GeoJSON)
+            </div>
+        </details>
+        <details>
+            <summary>Safety Score Methodology</summary>
+            <div class="detail-content">
+                Each neighborhood receives a score from 0 to 100 in four categories: Crime, 311 Complaints, Crashes, and Violations. Scores are computed using z-score normalization of per-capita rates (per 1,000 residents), then scaled to 0&ndash;100. Higher scores indicate safer/better conditions.<br><br>
+                <strong>Overall score weights:</strong><br>
+                &bull; Crime: 40%<br>
+                &bull; 311 Complaints: 25%<br>
+                &bull; Crashes: 20%<br>
+                &bull; Violations: 15%<br><br>
+                Population estimates are from the 2020 Census / American Community Survey.
+            </div>
+        </details>
+        <details>
+            <summary>Caveats &amp; Limitations</summary>
+            <div class="detail-content">
+                &bull; Neighborhoods with very small residential populations (Bay Village, West End, South Boston Waterfront) may show exaggerated per-capita rates due to high daytime activity relative to resident count. These are marked with an asterisk (*).<br>
+                &bull; Crime and 311 data reflect <em>reported</em> incidents, not necessarily all incidents.<br>
+                &bull; Neighborhood boundaries are approximations. Some records near borders may be assigned to adjacent neighborhoods.<br>
+                &bull; This dashboard is for informational purposes and should not be the sole basis for housing or safety decisions.
+            </div>
+        </details>
+    </div>
+</div>
+
+<!-- Footer -->
+<footer class="footer">
+    <p>
+        Built by <a href="https://www.linkedin.com/in/mekhalraj/" target="_blank">Mekhal Raj</a> &nbsp;|&nbsp;
+        <a href="https://github.com/mekhalraj" target="_blank">GitHub</a> &nbsp;|&nbsp;
+        Data: <a href="https://data.boston.gov" target="_blank">Analyze Boston</a>
+    </p>
+    <p style="margin-top:0.3rem">Phase 1 of Boston Neighborhood Intelligence</p>
+</footer>
+
+<script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script>
+// =========================================================================
+// State
+// =========================================================================
+const STATE = {
+    activeMetric: 'overall',
+    selectedNeighborhood: null,
+    sortColumn: 'rank',
+    sortAsc: true,
+    data: null,
+    map: null,
+    popup: null,
+    charts: {},
+};
+
+const METRIC_LABELS = {
+    overall: 'Overall Safety',
+    crime: 'Crime Safety',
+    complaints: '311 Safety',
+    crashes: 'Crash Safety',
+    violations: 'Violation Safety',
+};
+
+const METRIC_COLORS = {
+    overall: '#2563eb',
+    crime: '#dc4a3a',
+    complaints: '#d97706',
+    crashes: '#0d9488',
+    violations: '#7c3aed',
+};
+
+const SCORE_FIELD = {
+    overall: 'overall_score',
+    crime: 'crime_score',
+    complaints: 'complaints_score',
+    crashes: 'crashes_score',
+    violations: 'violations_score',
+};
+
+// =========================================================================
+// Utility functions
+// =========================================================================
+function fmt(n) {
+    if (n == null) return '—';
+    return Number(n).toLocaleString();
+}
+
+function getScoreColor(score) {
+    if (score >= 75) return '#2563eb';
+    if (score >= 60) return '#34d399';
+    if (score >= 45) return '#fbbf24';
+    if (score >= 30) return '#f59e0b';
+    return '#d7191c';
+}
+
+function buildColorExpression(field) {
+    return [
+        'interpolate', ['linear'], ['get', field],
+        0, '#d7191c',
+        25, '#f59e0b',
+        50, '#fbbf24',
+        75, '#34d399',
+        100, '#2563eb'
+    ];
+}
+
+function getBounds(geojson, name) {
+    for (const f of geojson.features) {
+        if (f.properties.canonical_name === name) {
+            const coords = [];
+            function extract(c) {
+                if (typeof c[0] === 'number') { coords.push(c); return; }
+                c.forEach(extract);
+            }
+            extract(f.geometry.coordinates);
+            const lngs = coords.map(c => c[0]);
+            const lats = coords.map(c => c[1]);
+            return [[Math.min(...lngs), Math.min(...lats)], [Math.max(...lngs), Math.max(...lats)]];
+        }
+    }
+    return null;
+}
+
+// =========================================================================
+// Data loading
+// =========================================================================
+async function loadData() {
+    const [scores, n311, crime, crashes, violations, geojson] = await Promise.all([
+        fetch('data/safety_scores.json').then(r => r.json()),
+        fetch('data/311_summary.json').then(r => r.json()),
+        fetch('data/crime_summary.json').then(r => r.json()),
+        fetch('data/crashes_summary.json').then(r => r.json()),
+        fetch('data/violations_summary.json').then(r => r.json()),
+        fetch('data/neighborhoods.geojson').then(r => r.json()),
+    ]);
+    return { scores, n311, crime, crashes, violations, geojson };
+}
+
+// =========================================================================
+// Map
+// =========================================================================
+function initMap(data) {
+    const map = new maplibregl.Map({
+        container: 'map',
+        style: 'https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json',
+        center: [-71.0589, 42.3601],
+        zoom: 11.5,
+        maxBounds: [[-71.25, 42.15], [-70.85, 42.50]],
+    });
+
+    map.addControl(new maplibregl.NavigationControl(), 'top-right');
+
+    const popup = new maplibregl.Popup({ closeButton: false, closeOnClick: false });
+    STATE.popup = popup;
+
+    map.on('load', () => {
+        map.addSource('neighborhoods', { type: 'geojson', data: data.geojson });
+
+        map.addLayer({
+            id: 'neighborhoods-fill',
+            type: 'fill',
+            source: 'neighborhoods',
+            paint: {
+                'fill-color': buildColorExpression('overall_score'),
+                'fill-opacity': 0.6,
+            }
+        });
+
+        map.addLayer({
+            id: 'neighborhoods-border',
+            type: 'line',
+            source: 'neighborhoods',
+            paint: { 'line-color': '#ffffff', 'line-width': 1.5 }
+        });
+
+        map.addLayer({
+            id: 'neighborhoods-hover',
+            type: 'line',
+            source: 'neighborhoods',
+            paint: { 'line-color': '#1e293b', 'line-width': 3 },
+            filter: ['==', 'canonical_name', '']
+        });
+
+        // Hover
+        map.on('mousemove', 'neighborhoods-fill', (e) => {
+            map.getCanvas().style.cursor = 'pointer';
+            const props = e.features[0].properties;
+            const name = props.canonical_name;
+            const field = SCORE_FIELD[STATE.activeMetric];
+            const score = props[field];
+            const label = METRIC_LABELS[STATE.activeMetric];
+            popup.setLngLat(e.lngLat)
+                .setHTML(`<div class="tooltip-name">${name}</div><div class="tooltip-score" style="color:${getScoreColor(score)}">${label}: ${score}</div>`)
+                .addTo(map);
+            map.setFilter('neighborhoods-hover', ['==', 'canonical_name', name]);
+        });
+
+        map.on('mouseleave', 'neighborhoods-fill', () => {
+            map.getCanvas().style.cursor = '';
+            popup.remove();
+            map.setFilter('neighborhoods-hover', ['==', 'canonical_name', '']);
+        });
+
+        // Click
+        map.on('click', 'neighborhoods-fill', (e) => {
+            const name = e.features[0].properties.canonical_name;
+            selectNeighborhood(name);
+        });
+    });
+
+    STATE.map = map;
+    return map;
+}
+
+function flyTo(name) {
+    const bounds = getBounds(STATE.data.geojson, name);
+    if (bounds && STATE.map) {
+        STATE.map.fitBounds(bounds, { padding: 60, duration: 800 });
+    }
+}
+
+// =========================================================================
+// Metric switching
+// =========================================================================
+function switchMetric(metric) {
+    STATE.activeMetric = metric;
+    // Update toggle buttons
+    document.querySelectorAll('.toggle-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.metric === metric);
+    });
+    // Update map
+    if (STATE.map && STATE.map.getLayer('neighborhoods-fill')) {
+        STATE.map.setPaintProperty('neighborhoods-fill', 'fill-color', buildColorExpression(SCORE_FIELD[metric]));
+    }
+    // Update rankings
+    renderRankings();
+}
+
+// =========================================================================
+// Sidebar: Rankings
+// =========================================================================
+function renderRankings() {
+    const data = STATE.data;
+    const field = SCORE_FIELD[STATE.activeMetric];
+    const entries = Object.entries(data.scores)
+        .map(([name, s]) => ({ name, score: s[field], rank: s.rank, warning: s.small_pop_warning }))
+        .sort((a, b) => b.score - a.score);
+
+    let html = '';
+    entries.forEach((e, i) => {
+        const color = getScoreColor(e.score);
+        html += `<div class="rank-item" data-name="${e.name}">
+            <span class="rank-number">${i + 1}</span>
+            <span class="rank-name">${e.name}${e.warning ? ' <span class="rank-pop-warning">*</span>' : ''}</span>
+            <span class="rank-score" style="background:${color}">${e.score}</span>
+        </div>`;
+    });
+
+    document.getElementById('rankingsContent').innerHTML = html;
+
+    // Click handlers
+    document.querySelectorAll('.rank-item').forEach(item => {
+        item.addEventListener('click', () => selectNeighborhood(item.dataset.name));
+    });
+}
+
+// =========================================================================
+// Sidebar: Detail panel
+// =========================================================================
+function selectNeighborhood(name) {
+    STATE.selectedNeighborhood = name;
+    const data = STATE.data;
+    const s = data.scores[name];
+    if (!s) return;
+
+    const crime = data.crime[name] || {};
+    const n311 = data.n311[name] || {};
+    const crashes = data.crashes[name] || {};
+    const violations = data.violations[name] || {};
+
+    const overallColor = getScoreColor(s.overall_score);
+
+    let html = `
+        <div class="detail-header">
+            <div>
+                <h3>${name}</h3>
+                ${s.small_pop_warning ? '<span class="rank-pop-warning">* Small population — rates may be less reliable</span>' : ''}
+            </div>
+            <div class="detail-score-badge" style="color:${overallColor}">${s.overall_score}</div>
+        </div>
+
+        <div class="chart-container">
+            <canvas id="radarChart"></canvas>
+        </div>
+
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-label" style="color:var(--color-crime)">Crime</div>
+                <div class="stat-value">${fmt(s.crime_count)}</div>
+                <div class="stat-sub">${s.crime_per_1000} per 1K residents</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label" style="color:var(--color-311)">311 Complaints</div>
+                <div class="stat-value">${fmt(s.complaint_count)}</div>
+                <div class="stat-sub">${s.complaints_per_1000} per 1K residents</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label" style="color:var(--color-crashes)">Crashes</div>
+                <div class="stat-value">${fmt(s.crashes_count)}</div>
+                <div class="stat-sub">${s.crashes_per_1000} per 1K residents</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label" style="color:var(--color-violations)">Violations</div>
+                <div class="stat-value">${fmt(s.violations_count)}</div>
+                <div class="stat-sub">${s.violations_per_1000} per 1K residents</div>
+            </div>
+        </div>
+    `;
+
+    // Top crimes
+    if (crime.top_offenses && crime.top_offenses.length) {
+        html += `<div class="detail-section"><h4>Top Crimes</h4><ul class="detail-list">`;
+        crime.top_offenses.forEach(o => {
+            html += `<li><span>${o.offense}</span><span class="count">${fmt(o.count)}</span></li>`;
+        });
+        html += `</ul></div>`;
+    }
+
+    // Top 311
+    if (n311.top_topics && n311.top_topics.length) {
+        html += `<div class="detail-section"><h4>Top 311 Complaints</h4><ul class="detail-list">`;
+        n311.top_topics.forEach(t => {
+            html += `<li><span>${t.topic}</span><span class="count">${fmt(t.count)}</span></li>`;
+        });
+        html += `</ul></div>`;
+    }
+
+    // Top violations
+    if (violations.top_violations && violations.top_violations.length) {
+        html += `<div class="detail-section"><h4>Top Violations</h4><ul class="detail-list">`;
+        violations.top_violations.forEach(v => {
+            html += `<li><span>${v.description}</span><span class="count">${fmt(v.count)}</span></li>`;
+        });
+        html += `</ul></div>`;
+    }
+
+    // Crash breakdown
+    if (crashes.total) {
+        html += `<div class="detail-section"><h4>Crash Breakdown</h4><ul class="detail-list">
+            <li><span>Motor Vehicle</span><span class="count">${fmt(crashes.motor_vehicle)}</span></li>
+            <li><span>Pedestrian</span><span class="count">${fmt(crashes.pedestrian)}</span></li>
+            <li><span>Cyclist</span><span class="count">${fmt(crashes.cyclist)}</span></li>
+        </ul></div>`;
+    }
+
+    // Crime by hour chart
+    if (crime.by_hour && crime.by_hour.some(v => v > 0)) {
+        html += `<div class="detail-section"><h4>Crime by Hour of Day</h4><div class="chart-container-sm"><canvas id="hourChart"></canvas></div></div>`;
+    }
+
+    document.getElementById('detailContent').innerHTML = html;
+    document.getElementById('rankingsList').classList.add('hidden');
+    document.getElementById('detailPanel').classList.add('active');
+
+    // Render radar chart
+    if (STATE.charts.radar) STATE.charts.radar.destroy();
+    STATE.charts.radar = new Chart(document.getElementById('radarChart'), {
+        type: 'radar',
+        data: {
+            labels: ['Crime', '311 Complaints', 'Crashes', 'Violations'],
+            datasets: [{
+                label: name,
+                data: [s.crime_score, s.complaints_score, s.crashes_score, s.violations_score],
+                backgroundColor: 'rgba(37, 99, 235, 0.12)',
+                borderColor: '#2563eb',
+                borderWidth: 2,
+                pointBackgroundColor: '#2563eb',
+                pointRadius: 4,
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                r: {
+                    min: 0, max: 100,
+                    ticks: { stepSize: 25, font: { size: 10 } },
+                    pointLabels: { font: { size: 12, family: 'DM Sans' } },
+                }
+            },
+            plugins: { legend: { display: false } }
+        }
+    });
+
+    // Render hour chart
+    const hourCanvas = document.getElementById('hourChart');
+    if (hourCanvas && crime.by_hour) {
+        if (STATE.charts.hour) STATE.charts.hour.destroy();
+        STATE.charts.hour = new Chart(hourCanvas, {
+            type: 'bar',
+            data: {
+                labels: Array.from({length: 24}, (_, i) => i === 0 ? '12a' : i < 12 ? `${i}a` : i === 12 ? '12p' : `${i-12}p`),
+                datasets: [{
+                    data: crime.by_hour,
+                    backgroundColor: 'rgba(220, 74, 58, 0.6)',
+                    borderRadius: 3,
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: {
+                    x: { grid: { display: false }, ticks: { font: { size: 9 }, maxRotation: 0 } },
+                    y: { grid: { color: '#f1f5f9' }, ticks: { font: { size: 9 } } }
+                }
+            }
+        });
+    }
+
+    flyTo(name);
+}
+
+function deselectNeighborhood() {
+    STATE.selectedNeighborhood = null;
+    document.getElementById('rankingsList').classList.remove('hidden');
+    document.getElementById('detailPanel').classList.remove('active');
+}
+
+// =========================================================================
+// Comparison
+// =========================================================================
+function setupComparison() {
+    const names = Object.keys(STATE.data.scores).sort();
+    ['compare1', 'compare2'].forEach(id => {
+        const sel = document.getElementById(id);
+        names.forEach(n => {
+            const opt = document.createElement('option');
+            opt.value = n;
+            opt.textContent = n;
+            sel.appendChild(opt);
+        });
+        sel.addEventListener('change', updateComparison);
+    });
+}
+
+function updateComparison() {
+    const n1 = document.getElementById('compare1').value;
+    const n2 = document.getElementById('compare2').value;
+    if (!n1 || !n2) return;
+
+    const s1 = STATE.data.scores[n1];
+    const s2 = STATE.data.scores[n2];
+    if (!s1 || !s2) return;
+
+    // Radar chart
+    if (STATE.charts.comparison) STATE.charts.comparison.destroy();
+    STATE.charts.comparison = new Chart(document.getElementById('comparisonChart'), {
+        type: 'radar',
+        data: {
+            labels: ['Crime', '311', 'Crashes', 'Violations'],
+            datasets: [
+                {
+                    label: n1,
+                    data: [s1.crime_score, s1.complaints_score, s1.crashes_score, s1.violations_score],
+                    backgroundColor: 'rgba(37, 99, 235, 0.12)',
+                    borderColor: '#2563eb',
+                    borderWidth: 2,
+                    pointBackgroundColor: '#2563eb',
+                },
+                {
+                    label: n2,
+                    data: [s2.crime_score, s2.complaints_score, s2.crashes_score, s2.violations_score],
+                    backgroundColor: 'rgba(220, 74, 58, 0.12)',
+                    borderColor: '#dc4a3a',
+                    borderWidth: 2,
+                    pointBackgroundColor: '#dc4a3a',
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: { r: { min: 0, max: 100, ticks: { stepSize: 25 } } },
+            plugins: { legend: { position: 'bottom', labels: { font: { family: 'DM Sans' } } } }
+        }
+    });
+
+    // Stats
+    const stats = [
+        { label: 'Overall Score', k: 'overall_score' },
+        { label: 'Crime Rate', k: 'crime_per_1000', suffix: '/1K' },
+        { label: '311 Rate', k: 'complaints_per_1000', suffix: '/1K' },
+        { label: 'Crash Rate', k: 'crashes_per_1000', suffix: '/1K' },
+        { label: 'Violations Rate', k: 'violations_per_1000', suffix: '/1K' },
+        { label: 'Population', k: 'population' },
+    ];
+
+    let html = '';
+    stats.forEach(st => {
+        const v1 = s1[st.k];
+        const v2 = s2[st.k];
+        const suffix = st.suffix || '';
+        html += `<div class="comp-stat">
+            <div class="comp-stat-label">${st.label}</div>
+            <div class="comp-stat-values">
+                <span class="comp-stat-val" style="color:#2563eb">${fmt(v1)}${suffix}</span>
+                <span class="comp-stat-val" style="color:#dc4a3a">${fmt(v2)}${suffix}</span>
+            </div>
+        </div>`;
+    });
+    document.getElementById('comparisonStats').innerHTML = html;
+}
+
+// =========================================================================
+// Ranking table
+// =========================================================================
+function renderTable() {
+    const data = STATE.data;
+    let rows = Object.entries(data.scores).map(([name, s]) => ({ name, ...s }));
+
+    // Sort
+    const col = STATE.sortColumn;
+    rows.sort((a, b) => {
+        let va = col === 'name' ? a.name : a[col];
+        let vb = col === 'name' ? b.name : b[col];
+        if (typeof va === 'string') return STATE.sortAsc ? va.localeCompare(vb) : vb.localeCompare(va);
+        return STATE.sortAsc ? va - vb : vb - va;
+    });
+
+    let html = '';
+    rows.forEach(r => {
+        html += `<tr data-name="${r.name}">
+            <td>${r.rank}</td>
+            <td>${r.name}${r.small_pop_warning ? ' *' : ''}</td>
+            <td class="score-cell" style="color:${getScoreColor(r.overall_score)}">${r.overall_score}</td>
+            <td class="score-cell" style="color:${getScoreColor(r.crime_score)}">${r.crime_score}</td>
+            <td class="score-cell" style="color:${getScoreColor(r.complaints_score)}">${r.complaints_score}</td>
+            <td class="score-cell" style="color:${getScoreColor(r.crashes_score)}">${r.crashes_score}</td>
+            <td class="score-cell" style="color:${getScoreColor(r.violations_score)}">${r.violations_score}</td>
+            <td>${fmt(r.population)}</td>
+        </tr>`;
+    });
+    document.getElementById('rankingTableBody').innerHTML = html;
+
+    // Click row -> fly to neighborhood
+    document.querySelectorAll('#rankingTableBody tr').forEach(tr => {
+        tr.addEventListener('click', () => {
+            selectNeighborhood(tr.dataset.name);
+            document.getElementById('map').scrollIntoView({ behavior: 'smooth', block: 'center' });
+        });
+    });
+
+    // Update sort arrows
+    document.querySelectorAll('#rankingTable th').forEach(th => {
+        const arrow = th.querySelector('.sort-arrow');
+        if (th.dataset.sort === STATE.sortColumn) {
+            arrow.textContent = STATE.sortAsc ? ' ▲' : ' ▼';
+        } else {
+            arrow.textContent = '';
+        }
+    });
+}
+
+function setupTableSort() {
+    document.querySelectorAll('#rankingTable th').forEach(th => {
+        th.addEventListener('click', () => {
+            const col = th.dataset.sort;
+            if (STATE.sortColumn === col) {
+                STATE.sortAsc = !STATE.sortAsc;
+            } else {
+                STATE.sortColumn = col;
+                STATE.sortAsc = col === 'name' ? true : true;
+            }
+            renderTable();
+        });
+    });
+}
+
+// =========================================================================
+// Findings
+// =========================================================================
+function renderFindings() {
+    const scores = STATE.data.scores;
+    const entries = Object.entries(scores);
+    const findings = [];
+
+    // Safest neighborhood
+    const safest = entries.reduce((a, b) => a[1].overall_score > b[1].overall_score ? a : b);
+    findings.push({
+        title: 'Safest Neighborhood',
+        stat: safest[0],
+        desc: `With an overall safety score of ${safest[1].overall_score}, ${safest[0]} ranks #1 across all metrics.`,
+        color: 'var(--color-overall)',
+    });
+
+    // Highest crime per capita (exclude small pop)
+    const highCrime = entries.filter(([,s]) => !s.small_pop_warning).reduce((a, b) => a[1].crime_per_1000 > b[1].crime_per_1000 ? a : b);
+    findings.push({
+        title: 'Highest Crime Rate',
+        stat: `${highCrime[1].crime_per_1000}/1K`,
+        desc: `${highCrime[0]} has the highest crime rate at ${highCrime[1].crime_per_1000} incidents per 1,000 residents.`,
+        color: 'var(--color-crime)',
+    });
+
+    // Most 311 complaints per capita
+    const high311 = entries.filter(([,s]) => !s.small_pop_warning).reduce((a, b) => a[1].complaints_per_1000 > b[1].complaints_per_1000 ? a : b);
+    findings.push({
+        title: 'Most 311 Complaints',
+        stat: `${high311[1].complaints_per_1000}/1K`,
+        desc: `${high311[0]} leads in 311 complaints per capita with ${fmt(high311[1].complaint_count)} total complaints.`,
+        color: 'var(--color-311)',
+    });
+
+    // Most crashes per capita
+    const highCrash = entries.filter(([,s]) => !s.small_pop_warning).reduce((a, b) => a[1].crashes_per_1000 > b[1].crashes_per_1000 ? a : b);
+    findings.push({
+        title: 'Highest Crash Rate',
+        stat: `${highCrash[1].crashes_per_1000}/1K`,
+        desc: `${highCrash[0]} has ${fmt(highCrash[1].crashes_count)} crashes — the highest per-capita rate among larger neighborhoods.`,
+        color: 'var(--color-crashes)',
+    });
+
+    let html = '';
+    findings.forEach(f => {
+        html += `<div class="finding-card" style="border-left-color:${f.color}">
+            <h4>${f.title}</h4>
+            <div class="finding-stat" style="color:${f.color}">${f.stat}</div>
+            <div class="finding-desc">${f.desc}</div>
+        </div>`;
+    });
+    document.getElementById('findings').innerHTML = html;
+}
+
+// =========================================================================
+// Init
+// =========================================================================
+document.addEventListener('DOMContentLoaded', async () => {
+    try {
+        STATE.data = await loadData();
+    } catch (err) {
+        document.body.innerHTML = `<div style="text-align:center;padding:4rem 2rem"><h1>Error Loading Data</h1><p>${err.message}</p></div>`;
+        return;
+    }
+
+    initMap(STATE.data);
+    renderRankings();
+    setupComparison();
+    renderTable();
+    setupTableSort();
+    renderFindings();
+
+    // Toggle buttons
+    document.querySelectorAll('.toggle-btn').forEach(btn => {
+        btn.addEventListener('click', () => switchMetric(btn.dataset.metric));
+    });
+
+    // Back button
+    document.getElementById('backBtn').addEventListener('click', deselectNeighborhood);
+});
+</script>
+</body>
+</html>
