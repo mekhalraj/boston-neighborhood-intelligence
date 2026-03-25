@@ -24,7 +24,11 @@ DATA_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__
 CKAN_BASE = "https://data.boston.gov/api/3/action"
 
 RESOURCES = {
-    "311": "254adca6-64ab-4c5c-9fc0-a6da622be185",
+    "311": [
+        "e6013a93-1321-4f2a-bf91-8d8a02f1e62f",  # 2023
+        "dff4d804-5031-443a-8409-8344efd0e5c8",  # 2024
+        "9d7c2214-4709-478a-a2e8-fb2020a5bb94",  # 2025
+    ],
     "crime": "b973d8cb-eeb2-4e7e-99da-c92938efc9c0",
     "violations": "800a2663-1d6a-46e7-9356-bedb70f5332c",
     "crashes": "e4bfe397-6bfc-49c5-9367-c879fac7401d",
@@ -659,13 +663,14 @@ def aggregate_violations(df):
 
 def compute_safety_scores(agg_311, agg_crime, agg_crashes, agg_violations):
     """
-    Compute 0-100 safety scores using z-score normalization.
-    Higher score = safer.
+    Compute 0-100 safety scores using percentile rank.
+    Higher score = safer. Lower per-capita rate = higher score.
     """
     print("Computing safety scores...")
 
     # Collect all neighborhoods present in any dataset
-    all_hoods = set(POPULATION.keys())
+    all_hoods = sorted(POPULATION.keys())
+    n = len(all_hoods)
 
     raw = {}
     for hood in all_hoods:
@@ -676,24 +681,25 @@ def compute_safety_scores(agg_311, agg_crime, agg_crashes, agg_violations):
             "violations_rate": agg_violations.get(hood, {}).get("per_1000", 0),
         }
 
-    # Z-score normalize each dimension (inverted: lower rate = higher z = safer)
+    # Percentile rank each dimension (inverted: lower rate = higher score = safer)
     dimensions = ["crime_rate", "complaints_rate", "crashes_rate", "violations_rate"]
     score_names = ["crime_score", "complaints_score", "crashes_score", "violations_score"]
 
     scores = {hood: {} for hood in all_hoods}
 
     for dim, score_name in zip(dimensions, score_names):
-        values = np.array([raw[h][dim] for h in all_hoods])
-        mean_val = np.mean(values)
-        std_val = np.std(values)
-
-        for hood in all_hoods:
-            if std_val > 0:
-                z = -(raw[hood][dim] - mean_val) / std_val  # negative: lower rate = higher score
+        values = [raw[h][dim] for h in all_hoods]
+        # Rank by rate ascending (lowest rate = rank 1 = safest)
+        indexed = sorted(range(n), key=lambda i: values[i])
+        rank_of = [0] * n
+        for rank, idx in enumerate(indexed):
+            rank_of[idx] = rank
+        # Convert rank to 0-100: rank 0 (lowest rate) = 100, rank n-1 (highest) = 0
+        for i, hood in enumerate(all_hoods):
+            if n > 1:
+                score = (1 - rank_of[i] / (n - 1)) * 100
             else:
-                z = 0
-            # Convert z-score to 0-100 scale: z of -2 -> 0, z of +2 -> 100
-            score = max(0, min(100, (z + 2) * 25))
+                score = 50
             scores[hood][score_name] = round(score, 1)
 
     # Weighted overall score
@@ -794,12 +800,19 @@ def main():
 
     # 2. Download datasets
     print("\n--- Downloading datasets ---")
-    try:
-        df_311 = download_datastore(RESOURCES["311"], "311 Service Requests")
-    except Exception as e:
-        print(f"  Datastore API failed for 311: {e}")
-        print("  Trying direct CSV download...")
-        df_311 = download_csv_direct(RESOURCES["311"], "311 Service Requests")
+    # 311 has multiple yearly resources
+    dfs_311 = []
+    for i, rid in enumerate(RESOURCES["311"]):
+        label = f"311 Service Requests ({2023 + i})"
+        try:
+            dfs_311.append(download_datastore(rid, label))
+        except Exception as e:
+            print(f"  Datastore API failed for {label}: {e}")
+            try:
+                dfs_311.append(download_csv_direct(rid, label))
+            except Exception as e2:
+                print(f"  CSV download also failed for {label}: {e2}")
+    df_311 = pd.concat(dfs_311, ignore_index=True) if dfs_311 else pd.DataFrame()
 
     try:
         df_crime = download_datastore(RESOURCES["crime"], "Crime Incidents")
