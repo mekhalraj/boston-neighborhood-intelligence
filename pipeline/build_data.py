@@ -730,6 +730,21 @@ def compute_safety_scores(agg_311, agg_crime, agg_crashes, agg_violations):
     for i, hood in enumerate(ranked):
         scores[hood]["rank"] = i + 1
 
+    # Per-dimension ranks (1 = safest = lowest rate)
+    for rate_key, rank_key in [
+        ("crime_per_1000", "crime_rank"),
+        ("complaints_per_1000", "complaints_rank"),
+        ("crashes_per_1000", "crashes_rank"),
+        ("violations_per_1000", "violations_rank"),
+    ]:
+        sorted_hoods = sorted(all_hoods, key=lambda h: scores[h][rate_key])
+        for i, hood in enumerate(sorted_hoods):
+            scores[hood][rank_key] = i + 1
+
+    # Store total neighborhood count for frontend display
+    for hood in all_hoods:
+        scores[hood]["total_neighborhoods"] = n
+
     return scores
 
 
