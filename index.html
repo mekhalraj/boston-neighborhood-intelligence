@@ -171,10 +171,8 @@
             font-style: italic;
         }
 
-        /* Detail panel */
-        .detail-panel { display: none; }
-        .detail-panel.active { display: block; }
-        .rankings-list.hidden { display: none; }
+        /* Detail panel (full-width below map) */
+        .detail-section-wrap { }
         .back-btn {
             display: inline-flex;
             align-items: center;
@@ -189,44 +187,57 @@
             font-family: inherit;
         }
         .back-btn:hover { text-decoration: underline; }
-        .detail-header { display: flex; align-items: center; gap: 0.8rem; margin-bottom: 1rem; }
-        .detail-header h3 { font-size: 1.3rem; margin: 0; }
+        .detail-header { display: flex; align-items: center; gap: 1rem; margin-bottom: 1.5rem; }
+        .detail-header h3 { font-size: 1.6rem; margin: 0; }
         .detail-score-badge {
-            font-size: 1.5rem;
+            font-size: 1.8rem;
             font-weight: 900;
             font-family: 'DM Sans', sans-serif;
         }
 
-        .stats-grid {
+        .detail-top {
             display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 0.6rem;
-            margin-bottom: 1rem;
+            grid-template-columns: 280px 1fr;
+            gap: 1.5rem;
+            margin-bottom: 1.5rem;
+            align-items: center;
+        }
+        .detail-stats-row {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 0.8rem;
         }
         .stat-card {
             background: var(--bg);
-            border-radius: 8px;
-            padding: 0.6rem 0.8rem;
+            border-radius: 10px;
+            padding: 0.8rem 1rem;
         }
-        .stat-label { font-size: 0.75rem; color: var(--text-secondary); font-weight: 500; }
-        .stat-value { font-size: 1.1rem; font-weight: 700; }
-        .stat-sub { font-size: 0.7rem; color: var(--text-secondary); }
+        .stat-label { font-size: 0.8rem; color: var(--text-secondary); font-weight: 500; margin-bottom: 0.2rem; }
+        .stat-value { font-size: 1.3rem; font-weight: 700; }
+        .stat-sub { font-size: 0.75rem; color: var(--text-secondary); }
 
-        .detail-section { margin-bottom: 1rem; }
-        .detail-section h4 { font-size: 0.95rem; margin-bottom: 0.5rem; }
+        .detail-bottom {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 1.5rem;
+        }
+        .detail-col h4 { font-size: 1rem; margin-bottom: 0.6rem; }
         .detail-list { list-style: none; }
         .detail-list li {
             display: flex;
             justify-content: space-between;
-            padding: 0.25rem 0;
-            font-size: 0.85rem;
+            padding: 0.35rem 0;
+            font-size: 0.9rem;
             border-bottom: 1px solid var(--border);
         }
         .detail-list li:last-child { border-bottom: none; }
         .detail-list .count { font-weight: 600; color: var(--text-secondary); }
 
-        .chart-container { position: relative; height: 220px; margin-bottom: 1rem; }
-        .chart-container-sm { position: relative; height: 160px; margin-bottom: 1rem; }
+        .chart-container { position: relative; height: 260px; margin-bottom: 1rem; }
+        .chart-container-sm { position: relative; height: 220px; }
+
+        .rank-item.selected { background: #e0e7ff; }
+        .rank-item.selected:hover { background: #e0e7ff; }
 
         /* Comparison section */
         .section {
@@ -375,6 +386,10 @@
             .sidebar { height: auto; max-height: 60vh; }
             .section { padding: 0 1rem; }
             .section-card { padding: 1.2rem; }
+            .detail-top { grid-template-columns: 1fr; }
+            .detail-stats-row { grid-template-columns: 1fr 1fr; }
+            .detail-bottom { grid-template-columns: 1fr; }
+            .detail-header h3 { font-size: 1.2rem; }
             .comparison-body { grid-template-columns: 1fr; }
             .comparison-stats { grid-template-columns: 1fr; }
             .table-wrapper { margin: 0 -1rem; padding: 0 1rem; }
@@ -409,14 +424,17 @@
         </div>
     </div>
     <div class="sidebar" id="sidebar">
-        <div class="rankings-list" id="rankingsList">
-            <h3>Neighborhood Rankings</h3>
-            <div id="rankingsContent"></div>
-        </div>
-        <div class="detail-panel" id="detailPanel">
-            <button class="back-btn" id="backBtn">&larr; All neighborhoods</button>
-            <div id="detailContent"></div>
-        </div>
+        <h3>Neighborhood Rankings</h3>
+        <p style="font-size:0.8rem;color:var(--text-secondary);margin-bottom:0.6rem">Click a neighborhood to explore</p>
+        <div id="rankingsContent"></div>
+    </div>
+</div>
+
+<!-- Neighborhood Detail (full-width, hidden by default) -->
+<div class="section detail-section-wrap" id="detailSectionWrap" style="display:none">
+    <div class="section-card">
+        <button class="back-btn" id="backBtn">&larr; Back to overview</button>
+        <div id="detailContent"></div>
     </div>
 </div>
 
@@ -785,7 +803,7 @@ function renderRankings() {
 }
 
 // =========================================================================
-// Sidebar: Detail panel
+// Detail panel (full-width section below map)
 // =========================================================================
 function selectNeighborhood(name) {
     STATE.selectedNeighborhood = name;
@@ -801,27 +819,28 @@ function selectNeighborhood(name) {
     const overallColor = getRankColor(s.rank, s.total_neighborhoods);
     const N = s.total_neighborhoods;
 
+    // Header
     let html = `
         <div class="detail-header">
             <div>
                 <h3>${name}</h3>
                 ${s.small_pop_warning ? '<span class="rank-pop-warning">* Small population — rates may be less reliable</span>' : ''}
             </div>
-            <div class="detail-score-badge" style="color:${overallColor}">#${s.rank} <span style="font-size:0.75rem;font-weight:500;color:var(--text-secondary)">of ${N}</span></div>
+            <div class="detail-score-badge" style="color:${overallColor}">#${s.rank} <span style="font-size:0.85rem;font-weight:500;color:var(--text-secondary)">of ${N}</span></div>
         </div>
+    `;
 
-        <div class="chart-container">
-            <canvas id="radarChart"></canvas>
-        </div>
-
-        <div class="stats-grid">
+    // Top row: Radar chart + 4 stat cards
+    html += `<div class="detail-top">
+        <div class="chart-container"><canvas id="radarChart"></canvas></div>
+        <div class="detail-stats-row">
             <div class="stat-card">
                 <div class="stat-label" style="color:var(--color-crime)">Crime <span class="stat-rank" style="color:${getRankColor(s.crime_rank, N)}">#${s.crime_rank}</span></div>
                 <div class="stat-value">${fmt(s.crime_count)}</div>
                 <div class="stat-sub">${s.crime_per_1000} per 1K residents</div>
             </div>
             <div class="stat-card">
-                <div class="stat-label" style="color:var(--color-311)">311 Complaints <span class="stat-rank" style="color:${getRankColor(s.complaints_rank, N)}">#${s.complaints_rank}</span></div>
+                <div class="stat-label" style="color:var(--color-311)">311 <span class="stat-rank" style="color:${getRankColor(s.complaints_rank, N)}">#${s.complaints_rank}</span></div>
                 <div class="stat-value">${fmt(s.complaint_count)}</div>
                 <div class="stat-sub">${s.complaints_per_1000} per 1K residents</div>
             </div>
@@ -836,54 +855,69 @@ function selectNeighborhood(name) {
                 <div class="stat-sub">${s.violations_per_1000} per 1K residents</div>
             </div>
         </div>
-    `;
+    </div>`;
 
-    // Top crimes
+    // Bottom row: 3 columns — breakdowns + hour chart
+    html += `<div class="detail-bottom">`;
+
+    // Column 1: Top Crimes + Top Violations
+    html += `<div class="detail-col">`;
     if (crime.top_offenses && crime.top_offenses.length) {
-        html += `<div class="detail-section"><h4>Top Crimes</h4><ul class="detail-list">`;
+        html += `<h4>Top Crimes</h4><ul class="detail-list">`;
         crime.top_offenses.forEach(o => {
             html += `<li><span>${o.offense}</span><span class="count">${fmt(o.count)}</span></li>`;
         });
-        html += `</ul></div>`;
+        html += `</ul>`;
     }
-
-    // Top 311
-    if (n311.top_topics && n311.top_topics.length) {
-        html += `<div class="detail-section"><h4>Top 311 Complaints</h4><ul class="detail-list">`;
-        n311.top_topics.forEach(t => {
-            html += `<li><span>${t.topic}</span><span class="count">${fmt(t.count)}</span></li>`;
-        });
-        html += `</ul></div>`;
-    }
-
-    // Top violations
     if (violations.top_violations && violations.top_violations.length) {
-        html += `<div class="detail-section"><h4>Top Violations</h4><ul class="detail-list">`;
+        html += `<h4 style="margin-top:1rem">Top Violations</h4><ul class="detail-list">`;
         violations.top_violations.forEach(v => {
             html += `<li><span>${v.description}</span><span class="count">${fmt(v.count)}</span></li>`;
         });
-        html += `</ul></div>`;
+        html += `</ul>`;
     }
+    html += `</div>`;
 
-    // Crash breakdown
+    // Column 2: Top 311 + Crash Breakdown
+    html += `<div class="detail-col">`;
+    if (n311.top_topics && n311.top_topics.length) {
+        html += `<h4>Top 311 Complaints</h4><ul class="detail-list">`;
+        n311.top_topics.forEach(t => {
+            html += `<li><span>${t.topic}</span><span class="count">${fmt(t.count)}</span></li>`;
+        });
+        html += `</ul>`;
+    }
     if (crashes.total) {
-        html += `<div class="detail-section"><h4>Crash Breakdown</h4><ul class="detail-list">
+        html += `<h4 style="margin-top:1rem">Crash Breakdown</h4><ul class="detail-list">
             <li><span>Motor Vehicle</span><span class="count">${fmt(crashes.motor_vehicle)}</span></li>
             <li><span>Pedestrian</span><span class="count">${fmt(crashes.pedestrian)}</span></li>
             <li><span>Cyclist</span><span class="count">${fmt(crashes.cyclist)}</span></li>
-        </ul></div>`;
+        </ul>`;
     }
+    html += `</div>`;
 
-    // Crime by hour chart
+    // Column 3: Crime by Hour chart
+    html += `<div class="detail-col">`;
     if (crime.by_hour && crime.by_hour.some(v => v > 0)) {
-        html += `<div class="detail-section"><h4>Crime by Hour of Day</h4><div class="chart-container-sm"><canvas id="hourChart"></canvas></div></div>`;
+        html += `<h4>Crime by Hour of Day</h4><div class="chart-container-sm"><canvas id="hourChart"></canvas></div>`;
     }
+    html += `</div>`;
+
+    html += `</div>`; // close detail-bottom
 
     document.getElementById('detailContent').innerHTML = html;
-    document.getElementById('rankingsList').classList.add('hidden');
-    document.getElementById('detailPanel').classList.add('active');
 
-    // Render radar chart (percentile scores for visual shape, ranks on labels)
+    // Show the detail section and scroll to it
+    const wrap = document.getElementById('detailSectionWrap');
+    wrap.style.display = '';
+    setTimeout(() => wrap.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
+
+    // Highlight selected in sidebar
+    document.querySelectorAll('.rank-item').forEach(item => {
+        item.classList.toggle('selected', item.dataset.name === name);
+    });
+
+    // Render radar chart
     if (STATE.charts.radar) STATE.charts.radar.destroy();
     STATE.charts.radar = new Chart(document.getElementById('radarChart'), {
         type: 'radar',
@@ -896,7 +930,7 @@ function selectNeighborhood(name) {
                 borderColor: '#2563eb',
                 borderWidth: 2,
                 pointBackgroundColor: '#2563eb',
-                pointRadius: 4,
+                pointRadius: 5,
             }]
         },
         options: {
@@ -906,7 +940,7 @@ function selectNeighborhood(name) {
                 r: {
                     min: 0, max: 100,
                     ticks: { display: false },
-                    pointLabels: { font: { size: 11, family: 'DM Sans', weight: '600' } },
+                    pointLabels: { font: { size: 12, family: 'DM Sans', weight: '600' } },
                 }
             },
             plugins: { legend: { display: false } }
@@ -932,8 +966,8 @@ function selectNeighborhood(name) {
                 maintainAspectRatio: false,
                 plugins: { legend: { display: false } },
                 scales: {
-                    x: { grid: { display: false }, ticks: { font: { size: 9 }, maxRotation: 0 } },
-                    y: { grid: { color: '#f1f5f9' }, ticks: { font: { size: 9 } } }
+                    x: { grid: { display: false }, ticks: { font: { size: 10 }, maxRotation: 0 } },
+                    y: { grid: { color: '#f1f5f9' }, ticks: { font: { size: 10 } } }
                 }
             }
         });
@@ -944,8 +978,8 @@ function selectNeighborhood(name) {
 
 function deselectNeighborhood() {
     STATE.selectedNeighborhood = null;
-    document.getElementById('rankingsList').classList.remove('hidden');
-    document.getElementById('detailPanel').classList.remove('active');
+    document.getElementById('detailSectionWrap').style.display = 'none';
+    document.querySelectorAll('.rank-item').forEach(item => item.classList.remove('selected'));
 }
 
 // =========================================================================
@@ -1066,12 +1100,9 @@ function renderTable() {
     });
     document.getElementById('rankingTableBody').innerHTML = html;
 
-    // Click row -> fly to neighborhood
+    // Click row -> show detail
     document.querySelectorAll('#rankingTableBody tr').forEach(tr => {
-        tr.addEventListener('click', () => {
-            selectNeighborhood(tr.dataset.name);
-            document.getElementById('map').scrollIntoView({ behavior: 'smooth', block: 'center' });
-        });
+        tr.addEventListener('click', () => selectNeighborhood(tr.dataset.name));
     });
 
     // Update sort arrows
