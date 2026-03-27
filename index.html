@@ -635,7 +635,7 @@
 <!-- Neighborhood Detail (full-width, hidden by default) -->
 <div class="section detail-section-wrap" id="detailSectionWrap" style="display:none">
     <div class="section-card">
-        <button class="back-btn" id="backBtn">&larr; Back to overview</button>
+        <button class="back-btn" id="backBtn">&larr; Click on any neighborhood to view</button>
         <div id="detailContent"></div>
     </div>
 </div>
@@ -1081,9 +1081,10 @@ function selectNeighborhood(name) {
 
     // Column 1: Top Crimes + Top Violations
     html += `<div class="detail-col">`;
-    if (crime.top_offenses && crime.top_offenses.length) {
+    const filteredOffenses = (crime.top_offenses || []).filter(o => o.offense.toLowerCase() !== 'other');
+    if (filteredOffenses.length) {
         html += `<h4>Top Crimes</h4><ul class="detail-list">`;
-        crime.top_offenses.filter(o => o.offense.toLowerCase() !== 'other').forEach(o => {
+        filteredOffenses.forEach(o => {
             html += `<li><span>${o.offense}</span><span class="count">${fmt(o.count)}</span></li>`;
         });
         html += `</ul>`;
