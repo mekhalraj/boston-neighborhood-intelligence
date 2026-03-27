@@ -1073,7 +1073,7 @@ function selectNeighborhood(name) {
     html += `<div class="detail-col">`;
     if (crime.top_offenses && crime.top_offenses.length) {
         html += `<h4>Top Crimes</h4><ul class="detail-list">`;
-        crime.top_offenses.forEach(o => {
+        crime.top_offenses.filter(o => o.offense.toLowerCase() !== 'other').forEach(o => {
             html += `<li><span>${o.offense}</span><span class="count">${fmt(o.count)}</span></li>`;
         });
         html += `</ul>`;
