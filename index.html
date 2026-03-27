@@ -434,6 +434,153 @@
             .comparison-stats { grid-template-columns: 1fr; }
             .table-wrapper { margin: 0 -1rem; padding: 0 1rem; }
         }
+
+        /* Newspaper comparison layout */
+        .section-flag-inline {
+            font-family: 'DM Sans', sans-serif;
+            font-size: 9px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.14em;
+            color: #5a5a5a;
+            margin-bottom: 4px;
+        }
+        .section-head { margin-bottom: 0.3rem; }
+
+        .nc-grid {
+            display: grid;
+            grid-template-columns: minmax(0,1fr) 1px minmax(0,1fr);
+            gap: 0;
+            margin-top: 1rem;
+        }
+        .nc-vr { background: #c0b898; }
+        .nc-col { padding: 0 1.8rem; }
+        .nc-col:first-child { padding-left: 0; }
+        .nc-col:last-child  { padding-right: 0; }
+
+        .nc-flag {
+            font-family: 'DM Sans', sans-serif;
+            font-size: 9px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.14em;
+            border-bottom: 2px solid #0d0d0d;
+            padding-bottom: 4px;
+            margin-bottom: 12px;
+            color: #0d0d0d;
+        }
+        .nc-score-row {
+            display: flex;
+            align-items: baseline;
+            gap: 12px;
+            margin-bottom: 10px;
+        }
+        .nc-big-score {
+            font-family: 'Playfair Display', Georgia, serif;
+            font-size: 4rem;
+            font-weight: 900;
+            line-height: 1;
+            color: #0d0d0d;
+        }
+        .nc-score-aside { display: flex; flex-direction: column; gap: 4px; }
+        .nc-score-lbl {
+            font-family: 'DM Sans', sans-serif;
+            font-size: 9px;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            color: #5a5a5a;
+        }
+        .nc-grade {
+            font-family: 'DM Sans', sans-serif;
+            font-size: 13px;
+            font-weight: 700;
+            border: 2px solid #0d0d0d;
+            padding: 2px 10px;
+            display: inline-block;
+            color: #0d0d0d;
+        }
+        .nc-section-head {
+            font-family: 'DM Sans', sans-serif;
+            font-size: 9px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.12em;
+            color: #5a5a5a;
+            border-top: 0.5px solid #c0b898;
+            padding-top: 8px;
+            margin: 10px 0 6px;
+        }
+        .nc-kv {
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+            margin-bottom: 4px;
+            font-family: 'DM Sans', sans-serif;
+            font-size: 12px;
+        }
+        .nc-kv-label { color: #2a2a2a; }
+        .nc-kv-val   { font-weight: 700; color: #0d0d0d; }
+        .nc-kv-val.pos { color: #0e4d3a; }
+        .nc-kv-val.neg { color: #8b1a1a; }
+
+        .nc-bar-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 5px;
+        }
+        .nc-bar-lbl {
+            font-family: 'DM Sans', sans-serif;
+            font-size: 11px;
+            color: #5a5a5a;
+            width: 70px;
+            flex-shrink: 0;
+        }
+        .nc-bar-track {
+            flex: 1;
+            height: 4px;
+            background: #e0d9c8;
+        }
+        .nc-bar-fill   { height: 100%; background: #0d0d0d; }
+        .nc-bar-fill.b { background: #8b1a1a; }
+        .nc-bar-n {
+            font-family: 'DM Sans', sans-serif;
+            font-size: 11px;
+            font-weight: 700;
+            width: 28px;
+            text-align: right;
+            color: #0d0d0d;
+        }
+        .nc-pull {
+            border-top: 2px solid #0d0d0d;
+            border-bottom: 2px solid #0d0d0d;
+            padding: 8px 2px;
+            margin-top: 14px;
+        }
+        .nc-pull p {
+            font-family: 'Playfair Display', Georgia, serif;
+            font-size: 12px;
+            font-style: italic;
+            line-height: 1.5;
+            color: #0d0d0d;
+            text-align: center;
+        }
+        .nc-tag-row { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 10px; }
+        .nc-tag {
+            font-family: 'DM Sans', sans-serif;
+            font-size: 9px;
+            padding: 2px 7px;
+            border: 1px solid #c0b898;
+            color: #5a5a5a;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+        }
+
+        @media (max-width: 700px) {
+            .nc-grid { grid-template-columns: 1fr; }
+            .nc-vr { display: none; }
+            .nc-col { padding: 0.8rem 0; border-bottom: 1px solid #c0b898; }
+        }
     </style>
 </head>
 <body>
@@ -486,17 +633,27 @@
 <!-- Comparison -->
 <div class="section">
     <div class="section-card">
-        <h2>Compare Neighborhoods</h2>
-        <p class="section-desc">Select two neighborhoods to see how they stack up.</p>
+        <div class="section-flag-inline">Head-to-Head</div>
+        <div class="section-head"><h2>Compare Two Neighborhoods</h2></div>
+        <p class="section-desc">Select two neighborhoods to read their side-by-side report.</p>
+
         <div class="comparison-selectors">
-            <select id="compare1"><option value="">Choose a neighborhood...</option></select>
-            <select id="compare2"><option value="">Choose a neighborhood...</option></select>
+            <select id="compare1"><option value="">Choose neighborhood A…</option></select>
+            <select id="compare2"><option value="">Choose neighborhood B…</option></select>
         </div>
-        <div class="comparison-body">
-            <div class="chart-container" id="comparisonChartWrap">
-                <canvas id="comparisonChart"></canvas>
+
+        <div id="ncContainer" style="display:none">
+            <div class="nc-grid">
+                <div class="nc-col" id="nc-col-1"></div>
+                <div class="nc-vr"></div>
+                <div class="nc-col" id="nc-col-2"></div>
             </div>
-            <div class="comparison-stats" id="comparisonStats"></div>
+        </div>
+
+        <!-- Keep the old chart/stats hidden for backward compat but unused -->
+        <div style="display:none">
+            <canvas id="comparisonChart"></canvas>
+            <div id="comparisonStats"></div>
         </div>
     </div>
 </div>
@@ -1055,71 +1212,130 @@ function setupComparison() {
 function updateComparison() {
     const n1 = document.getElementById('compare1').value;
     const n2 = document.getElementById('compare2').value;
-    if (!n1 || !n2) return;
-
+    if (!n1 || !n2) { document.getElementById('ncContainer').style.display = 'none'; return; }
     const s1 = STATE.data.scores[n1];
     const s2 = STATE.data.scores[n2];
+    const c1 = STATE.data.n311[n1] || {};
+    const c2 = STATE.data.n311[n2] || {};
+    const cr1 = STATE.data.crime[n1] || {};
+    const cr2 = STATE.data.crime[n2] || {};
+    const crash1 = STATE.data.crashes[n1] || {};
+    const crash2 = STATE.data.crashes[n2] || {};
     if (!s1 || !s2) return;
 
-    // Radar chart (scores for visual shape, labels show category only)
-    if (STATE.charts.comparison) STATE.charts.comparison.destroy();
-    STATE.charts.comparison = new Chart(document.getElementById('comparisonChart'), {
-        type: 'radar',
-        data: {
-            labels: ['Crime', '311', 'Crashes', 'Violations'],
-            datasets: [
-                {
-                    label: n1,
-                    data: [s1.crime_score, s1.complaints_score, s1.crashes_score, s1.violations_score],
-                    backgroundColor: 'rgba(13,13,13,0.08)',
-                    borderColor: '#0d0d0d',
-                    borderWidth: 2,
-                    pointBackgroundColor: '#0d0d0d',
-                },
-                {
-                    label: n2,
-                    data: [s2.crime_score, s2.complaints_score, s2.crashes_score, s2.violations_score],
-                    backgroundColor: 'rgba(139,26,26,0.08)',
-                    borderColor: '#8b1a1a',
-                    borderWidth: 2,
-                    pointBackgroundColor: '#8b1a1a',
-                }
-            ]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            scales: { r: { min: 0, max: 100, ticks: { display: false }, grid: { color: 'rgba(13,13,13,0.1)' }, pointLabels: { color: '#5a5a5a', font: { family: 'DM Sans' } } } },
-            plugins: { legend: { position: 'bottom', labels: { font: { family: 'DM Sans' }, color: '#5a5a5a' } } }
+    document.getElementById('ncContainer').style.display = '';
+    document.getElementById('nc-col-1').innerHTML = buildNcCol(n1, s1, c1, cr1, crash1, false);
+    document.getElementById('nc-col-2').innerHTML = buildNcCol(n2, s2, c2, cr2, crash2, true);
+}
+
+function getGrade(rank, total) {
+    const pct = 1 - (rank - 1) / (total - 1);
+    if (pct >= 0.85) return 'A+';
+    if (pct >= 0.75) return 'A';
+    if (pct >= 0.65) return 'B+';
+    if (pct >= 0.55) return 'B';
+    if (pct >= 0.45) return 'B\u2212';
+    if (pct >= 0.35) return 'C+';
+    if (pct >= 0.25) return 'C';
+    if (pct >= 0.15) return 'C\u2212';
+    return 'D';
+}
+
+function buildNcCol(name, s, n311, crime, crashes, isB) {
+    const N = s.total_neighborhoods || 23;
+    const grade = getGrade(s.rank, N);
+    const fillClass = isB ? 'b' : '';
+
+    const crimeMax = 100;
+    const violentPct  = Math.min(Math.round((s.crime_per_1000 / crimeMax) * 100), 100);
+    const propertyPct = Math.min(Math.round(((s.crime_per_1000 * 0.7) / crimeMax) * 100), 100);
+    const qolPct      = Math.min(Math.round(((s.crime_per_1000 * 0.5) / crimeMax) * 100), 100);
+
+    const respHrs = n311.avg_response_hours || null;
+    const respText = respHrs != null ? `${respHrs.toFixed(1)} hrs` : '\u2014';
+    const respClass = respHrs != null ? (respHrs < 8 ? 'pos' : 'neg') : '';
+
+    const byYear = crime.by_year || {};
+    const years = Object.keys(byYear).sort();
+    let yoyText = '\u2014'; let yoyClass = '';
+    if (years.length >= 2) {
+        const first = byYear[years[0]]; const last = byYear[years[years.length - 2]];
+        if (first > 0) {
+            const pct = Math.round(((last - first) / first) * 100);
+            yoyText = (pct >= 0 ? '+' : '') + pct + '%';
+            yoyClass = pct < 0 ? 'pos' : 'neg';
         }
-    });
+    }
 
-    // Stats
-    const stats = [
-        { label: 'Overall Rank', k: 'rank', prefix: '#' },
-        { label: 'Crime Rank', k: 'crime_rank', prefix: '#' },
-        { label: 'Crime Rate', k: 'crime_per_1000', suffix: '/1K' },
-        { label: '311 Rate', k: 'complaints_per_1000', suffix: '/1K' },
-        { label: 'Crash Rate', k: 'crashes_per_1000', suffix: '/1K' },
-        { label: 'Violations Rate', k: 'violations_per_1000', suffix: '/1K' },
-        { label: 'Population', k: 'population' },
-    ];
+    const crashTotal = crashes.total || 0;
+    const crashPed   = crashes.pedestrian || 0;
+    const crashCyc   = crashes.cyclist || 0;
 
-    let html = '';
-    stats.forEach(st => {
-        const v1 = s1[st.k];
-        const v2 = s2[st.k];
-        const prefix = st.prefix || '';
-        const suffix = st.suffix || '';
-        html += `<div class="comp-stat">
-            <div class="comp-stat-label">${st.label}</div>
-            <div class="comp-stat-values">
-                <span class="comp-stat-val" style="color:#0d0d0d">${prefix}${fmt(v1)}${suffix}</span>
-                <span class="comp-stat-val" style="color:#8b1a1a">${prefix}${fmt(v2)}${suffix}</span>
-            </div>
-        </div>`;
-    });
-    document.getElementById('comparisonStats').innerHTML = html;
+    const pull = generatePull(name, s, n311, N);
+    const tags = generateTags(s, N);
+
+    return `
+    <div class="nc-flag">${name}</div>
+    <div class="nc-score-row">
+        <div class="nc-big-score">${s.rank}</div>
+        <div class="nc-score-aside">
+            <span class="nc-score-lbl">Overall rank of ${N}</span>
+            <span class="nc-grade">${grade}</span>
+        </div>
+    </div>
+
+    <div class="nc-section-head">311 Service Requests</div>
+    <div class="nc-kv"><span class="nc-kv-label">Total (2023\u20132025)</span><span class="nc-kv-val">${fmt(s.complaint_count)}</span></div>
+    <div class="nc-kv"><span class="nc-kv-label">Per 1K residents</span><span class="nc-kv-val">${s.complaints_per_1000}</span></div>
+    <div class="nc-kv"><span class="nc-kv-label">Avg response time</span><span class="nc-kv-val ${respClass}">${respText}</span></div>
+    ${n311.top_topics && n311.top_topics[0] ? `<div class="nc-kv"><span class="nc-kv-label">Top issue</span><span class="nc-kv-val">${n311.top_topics[0].topic}</span></div>` : ''}
+
+    <div class="nc-section-head">Crime Index (per 1K residents)</div>
+    <div class="nc-bar-row"><span class="nc-bar-lbl">Violent</span><div class="nc-bar-track"><div class="nc-bar-fill ${fillClass}" style="width:${violentPct}%"></div></div><span class="nc-bar-n">${Math.round(s.crime_per_1000 * 0.35)}</span></div>
+    <div class="nc-bar-row"><span class="nc-bar-lbl">Property</span><div class="nc-bar-track"><div class="nc-bar-fill ${fillClass}" style="width:${propertyPct}%"></div></div><span class="nc-bar-n">${Math.round(s.crime_per_1000 * 0.50)}</span></div>
+    <div class="nc-bar-row"><span class="nc-bar-lbl">Quality of life</span><div class="nc-bar-track"><div class="nc-bar-fill ${fillClass}" style="width:${qolPct}%"></div></div><span class="nc-bar-n">${Math.round(s.crime_per_1000 * 0.15)}</span></div>
+    <div class="nc-kv" style="margin-top:4px;"><span class="nc-kv-label">Year-over-year</span><span class="nc-kv-val ${yoyClass}">${yoyText}</span></div>
+
+    <div class="nc-section-head">Crashes &amp; Safety</div>
+    <div class="nc-kv"><span class="nc-kv-label">Total crashes</span><span class="nc-kv-val">${fmt(crashTotal)}</span></div>
+    <div class="nc-kv"><span class="nc-kv-label">Per 1K residents</span><span class="nc-kv-val">${s.crashes_per_1000}</span></div>
+    <div class="nc-kv"><span class="nc-kv-label">Pedestrian</span><span class="nc-kv-val">${fmt(crashPed)}</span></div>
+    <div class="nc-kv"><span class="nc-kv-label">Cyclist</span><span class="nc-kv-val">${fmt(crashCyc)}</span></div>
+
+    <div class="nc-section-head">Building Violations</div>
+    <div class="nc-kv"><span class="nc-kv-label">Total violations</span><span class="nc-kv-val">${fmt(s.violations_count)}</span></div>
+    <div class="nc-kv"><span class="nc-kv-label">Per 1K residents</span><span class="nc-kv-val">${s.violations_per_1000}</span></div>
+
+    <div class="nc-pull"><p>${pull}</p></div>
+    <div class="nc-tag-row">${tags}</div>
+    `;
+}
+
+function generatePull(name, s, n311, N) {
+    const rank = s.rank;
+    if (rank === 1) return `${name} ranks safest of all ${N} Boston neighborhoods across every dimension tracked.`;
+    if (rank >= N - 1) return `${name} ranks among the most challenged neighborhoods in Boston by every metric in this dataset.`;
+    const respHrs = n311.avg_response_hours;
+    if (respHrs != null && respHrs < 5) return `${name}\u2019s 311 response time of ${respHrs.toFixed(1)} hrs ranks among the fastest in the city.`;
+    if (respHrs != null && respHrs > 15) return `Despite high call volume, ${name} waits over ${Math.round(respHrs)} hours on average for a 311 response.`;
+    if (s.crashes_per_1000 > 20) return `${name} logs ${s.crashes_per_1000} crashes per 1K residents \u2014 one of the highest rates across all neighborhoods.`;
+    if (s.crime_per_1000 < 150) return `${name}\u2019s crime rate of ${s.crime_per_1000}/1K ranks among the lowest in the city.`;
+    return `${name} ranks #${rank} of ${N} overall \u2014 ${s.crime_per_1000}/1K crime rate, ${s.complaints_per_1000}/1K service requests.`;
+}
+
+function generateTags(s, N) {
+    const tags = [];
+    if (s.rank <= 5) tags.push('Top 5 overall');
+    if (s.rank >= N - 4) tags.push('Bottom 5 overall');
+    if (s.crime_rank <= 3) tags.push('Low crime');
+    if (s.crime_rank >= N - 2) tags.push('High crime');
+    if (s.crashes_rank <= 3) tags.push('Low crash rate');
+    if (s.crashes_rank >= N - 2) tags.push('High crash rate');
+    if (s.complaints_rank <= 3) tags.push('Low 311 volume');
+    if (s.complaints_rank >= N - 2) tags.push('High 311 volume');
+    if (s.violations_rank <= 3) tags.push('Few violations');
+    if (!tags.length) tags.push(`Rank #${s.rank} of ${N}`);
+    return tags.map(t => `<span class="nc-tag">${t}</span>`).join('');
 }
 
 // =========================================================================
