@@ -48,6 +48,15 @@
             padding: 4px 0;
             margin: 6px 0 4px;
         }
+        .header-deck {
+            font-family: 'Playfair Display', Georgia, serif;
+            font-size: clamp(1.1rem, 2.5vw, 1.5rem);
+            font-style: italic;
+            font-weight: 700;
+            color: var(--ink-soft);
+            margin: 0 auto 0.4rem;
+            max-width: 700px;
+        }
         .header .subtitle {
             font-family: 'IM Fell English', serif;
             font-style: italic;
@@ -592,7 +601,8 @@
       <span>Boston, Massachusetts</span>
       <span>data.boston.gov &middot; Free</span>
     </div>
-    <h1>How Safe Is Your Boston Neighborhood?</h1>
+    <h1>Boston Neighborhood Intelligence</h1>
+    <p class="header-deck">How Safe Is Your Boston Neighborhood?</p>
     <p class="subtitle">An interactive look at crime, 311 complaints, crashes, and building violations across Boston's neighborhoods — built on city data from Analyze Boston.</p>
     <div class="toggles" id="toggles">
         <button class="toggle-btn active" data-metric="overall">Overall Safety</button>
@@ -1207,6 +1217,9 @@ function setupComparison() {
         });
         sel.addEventListener('change', updateComparison);
     });
+    document.getElementById('compare1').value = 'Allston';
+    document.getElementById('compare2').value = 'Back Bay';
+    updateComparison();
 }
 
 function updateComparison() {
