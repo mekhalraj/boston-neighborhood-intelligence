@@ -749,6 +749,150 @@ def compute_safety_scores(agg_311, agg_crime, agg_crashes, agg_violations):
 
 
 # ---------------------------------------------------------------------------
+# Fun fact generation
+# ---------------------------------------------------------------------------
+
+def generate_fun_facts(scores, agg_311, agg_crime, agg_crashes, agg_violations):
+    """Generate a fun_fact string for each neighborhood based on its most extreme stat."""
+    print("Generating fun facts...")
+    all_hoods = sorted(scores.keys())
+    n = len(all_hoods)
+    total_pop = sum(POPULATION[h] for h in all_hoods)
+
+    # City-wide 311 category totals (from top_topics across all neighborhoods)
+    city_cat_counts = {}
+    for hood in all_hoods:
+        for item in agg_311.get(hood, {}).get("top_topics", []):
+            city_cat_counts[item["topic"]] = city_cat_counts.get(item["topic"], 0) + item["count"]
+    city_cat_per_cap = {cat: cnt / total_pop for cat, cnt in city_cat_counts.items()}
+
+    # City-wide crash mode per-capita rates
+    city_ped = sum(agg_crashes.get(h, {}).get("pedestrian", 0) for h in all_hoods)
+    city_cyc = sum(agg_crashes.get(h, {}).get("cyclist", 0) for h in all_hoods)
+    city_ped_per_cap = city_ped / total_pop if total_pop else 0
+    city_cyc_per_cap = city_cyc / total_pop if total_pop else 0
+
+    for hood in all_hoods:
+        candidates = []  # list of (impressiveness, fact_string)
+        s = scores[hood]
+        pop = POPULATION[hood]
+
+        # --- Rule 1: #1 or last in overall rank ---
+        if s["rank"] == 1:
+            candidates.append((n + 1, f"Ranked the safest neighborhood in Boston overall"))
+        elif s["rank"] == n:
+            candidates.append((n + 1, f"Ranked last in overall safety out of {n} neighborhoods"))
+
+        # --- Rule 2: #1 or last in any dimension rank ---
+        rank_dims = [
+            ("crime_rank", "crime rate", "Lowest", "Highest"),
+            ("complaints_rank", "311 complaint rate", "Lowest", "Highest"),
+            ("crashes_rank", "crash rate", "Lowest", "Highest"),
+            ("violations_rank", "violation rate", "Fewest", "Most"),
+        ]
+        for rank_key, label, low_word, high_word in rank_dims:
+            rank = s.get(rank_key, 0)
+            rate_key = rank_key.replace("_rank", "_per_1000")
+            if rank_key == "complaints_rank":
+                rate_key = "complaints_per_1000"
+            rate = s.get(rate_key, 0)
+            if rank == 1:
+                candidates.append((n, f"{low_word} {label} in Boston — {rate} per 1,000 residents"))
+            elif rank == n:
+                candidates.append((n, f"{high_word} {label} across all Boston neighborhoods"))
+
+        # --- Rule 3: 311 category wildly above city average (>2x) ---
+        if pop > 0:
+            for item in agg_311.get(hood, {}).get("top_topics", []):
+                cat = item["topic"]
+                if item["count"] < 10:
+                    continue
+                if cat in city_cat_per_cap and city_cat_per_cap[cat] > 0:
+                    hood_rate = item["count"] / pop
+                    multiplier = hood_rate / city_cat_per_cap[cat]
+                    if multiplier > 2.0:
+                        candidates.append((
+                            multiplier,
+                            f"{cat} complaints run {multiplier:.1f}x the city average",
+                        ))
+
+        # --- Rule 4: Peak crime hour between midnight and 4 AM ---
+        by_hour = agg_crime.get(hood, {}).get("by_hour", [0] * 24)
+        total_hourly = sum(by_hour)
+        if total_hourly > 0:
+            peak_hour = max(range(24), key=lambda h: by_hour[h])
+            if 0 <= peak_hour <= 4:
+                late_share = sum(by_hour[0:5]) / total_hourly
+                multiplier = late_share / (5 / 24)
+                if multiplier > 1.3:
+                    hr_label = f"{peak_hour} AM" if peak_hour > 0 else "midnight"
+                    candidates.append((
+                        multiplier + 2,
+                        f"Peak crime hour is {hr_label} — late-night incidents run {multiplier:.1f}x the expected rate",
+                    ))
+
+        # --- Rule 5: Year-over-year crime trend (>10% change) ---
+        by_year = agg_crime.get(hood, {}).get("by_year", {})
+        years_sorted = sorted(by_year.keys())
+        if len(years_sorted) >= 3:
+            first_year, last_year = years_sorted[0], years_sorted[-2]
+        elif len(years_sorted) == 2:
+            first_year, last_year = years_sorted[0], years_sorted[1]
+        else:
+            first_year, last_year = None, None
+        if first_year and last_year and by_year.get(first_year, 0) > 0:
+            pct = (by_year[last_year] - by_year[first_year]) / by_year[first_year] * 100
+            if pct < -10:
+                candidates.append((abs(pct) / 10, f"Crime down {abs(pct):.0f}% from {first_year} to {last_year}"))
+            elif pct > 10:
+                candidates.append((pct / 10, f"Crime up {pct:.0f}% from {first_year} to {last_year}"))
+
+        # --- Rule 6: Cyclist/pedestrian crash outlier (>2x city avg) ---
+        hood_crashes = agg_crashes.get(hood, {})
+        if pop > 0:
+            for mode, count_key, city_avg in [
+                ("Pedestrian", "pedestrian", city_ped_per_cap),
+                ("Cyclist", "cyclist", city_cyc_per_cap),
+            ]:
+                count = hood_crashes.get(count_key, 0)
+                if count < 10:
+                    continue
+                if city_avg > 0:
+                    mult = (count / pop) / city_avg
+                    if mult > 2.0:
+                        candidates.append((mult, f"{mode} crashes run {mult:.1f}x the city average per capita"))
+
+        # Fallback: use the neighborhood's best-ranked dimension
+        if not candidates:
+            best_rank_key, best_rank_val = None, n + 1
+            dim_labels = {
+                "crime_rank": ("crime", "crime_per_1000"),
+                "complaints_rank": ("311 complaints", "complaints_per_1000"),
+                "crashes_rank": ("crash rate", "crashes_per_1000"),
+                "violations_rank": ("violation rate", "violations_per_1000"),
+            }
+            for rk in dim_labels:
+                if s.get(rk, n) < best_rank_val:
+                    best_rank_val = s[rk]
+                    best_rank_key = rk
+            if best_rank_key:
+                label, rate_key = dim_labels[best_rank_key]
+                candidates.append((
+                    0,
+                    f"Ranks #{best_rank_val} of {n} for lowest {label} — {s.get(rate_key, 0)} per 1,000 residents",
+                ))
+
+        # Pick the single best fact
+        if candidates:
+            candidates.sort(key=lambda c: c[0], reverse=True)
+            scores[hood]["fun_fact"] = candidates[0][1]
+            print(f"  {hood}: {candidates[0][1]}")
+
+    count = sum(1 for h in all_hoods if "fun_fact" in scores[h])
+    print(f"  Generated fun facts for {count}/{n} neighborhoods")
+
+
+# ---------------------------------------------------------------------------
 # GeoJSON enrichment and export
 # ---------------------------------------------------------------------------
 
@@ -891,6 +1035,10 @@ def main():
     # 6. Compute scores
     print("\n--- Computing scores ---")
     scores = compute_safety_scores(agg_311, agg_crime, agg_crashes, agg_violations)
+
+    # 6b. Generate fun facts
+    print("\n--- Generating fun facts ---")
+    generate_fun_facts(scores, agg_311, agg_crime, agg_crashes, agg_violations)
 
     # Print summary
     print("\n--- Safety Score Rankings ---")
