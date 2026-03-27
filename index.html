@@ -6,42 +6,52 @@
     <title>Boston Neighborhood Safety Map</title>
     <meta name="description" content="Interactive safety dashboard for Boston neighborhoods. Explore crime, 311 complaints, crashes, and violations data across 23 neighborhoods.">
     <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=UnifrakturMaguntia&family=Playfair+Display:ital,wght@0,700;0,900;1,700&family=IM+Fell+English:ital@0;1&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet">
     <style>
         :root {
-            --bg: #f8f6f2;
-            --card: #ffffff;
-            --text: #1a1a1a;
-            --text-secondary: #64748b;
-            --border: #e2e8f0;
-            --color-overall: #2563eb;
-            --color-crime: #dc4a3a;
-            --color-311: #d97706;
-            --color-crashes: #0d9488;
-            --color-violations: #7c3aed;
-            --shadow: 0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.06);
-            --shadow-lg: 0 4px 12px rgba(0,0,0,0.1);
+            --paper:      #f5f0e8;
+            --paper-mid:  #ede8da;
+            --paper-dark: #e0d9c8;
+            --ink:        #0d0d0d;
+            --ink-soft:   #2a2a2a;
+            --ink-muted:  #5a5a5a;
+            --ink-faint:  #999;
+            --rule-soft:  #c0b898;
+            --shadow:     none;
+            --shadow-lg:  none;
         }
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
         body {
-            font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
-            background: var(--bg);
-            color: var(--text);
+            font-family: 'IM Fell English', Georgia, serif;
+            background: var(--paper);
+            color: var(--ink);
             line-height: 1.6;
         }
         h1, h2, h3, h4 { font-family: 'Playfair Display', Georgia, serif; font-weight: 700; line-height: 1.2; }
 
         /* Header */
         .header {
-            max-width: 1400px;
-            margin: 0 auto;
-            padding: 2.5rem 2rem 1rem;
+            background: var(--paper);
+            border-bottom: 4px double var(--ink);
+            padding: 1rem 2rem 0.75rem;
             text-align: center;
+            max-width: 100%;
+            margin: 0;
         }
-        .header h1 { font-size: 2.4rem; margin-bottom: 0.5rem; }
+        .header h1 {
+            font-family: 'UnifrakturMaguntia', cursive;
+            font-size: clamp(2.4rem, 5vw, 4.5rem);
+            letter-spacing: 0.02em;
+            border-top: 2px solid var(--ink);
+            border-bottom: 2px solid var(--ink);
+            padding: 4px 0;
+            margin: 6px 0 4px;
+        }
         .header .subtitle {
-            color: var(--text-secondary);
+            font-family: 'IM Fell English', serif;
+            font-style: italic;
+            color: var(--ink-muted);
             font-size: 1.05rem;
             max-width: 600px;
             margin: 0 auto 1.5rem;
@@ -51,29 +61,27 @@
         .toggles {
             display: flex;
             justify-content: center;
-            gap: 0.5rem;
             flex-wrap: wrap;
             margin-bottom: 1.5rem;
         }
         .toggle-btn {
-            padding: 0.5rem 1.2rem;
-            border: 2px solid var(--border);
-            border-radius: 999px;
-            background: var(--card);
+            padding: 0.4rem 1rem;
+            border: 1px solid var(--ink);
+            border-right: none;
+            border-radius: 0;
+            background: var(--paper);
             font-family: 'DM Sans', sans-serif;
-            font-size: 0.9rem;
+            font-size: 11px;
             font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
             cursor: pointer;
-            transition: all 0.2s;
-            color: var(--text-secondary);
+            color: var(--ink-muted);
+            transition: background 0.15s, color 0.15s;
         }
-        .toggle-btn:hover { border-color: #94a3b8; }
-        .toggle-btn.active { color: #fff; border-color: transparent; }
-        .toggle-btn[data-metric="overall"].active { background: var(--color-overall); }
-        .toggle-btn[data-metric="crime"].active { background: var(--color-crime); }
-        .toggle-btn[data-metric="complaints"].active { background: var(--color-311); }
-        .toggle-btn[data-metric="crashes"].active { background: var(--color-crashes); }
-        .toggle-btn[data-metric="violations"].active { background: var(--color-violations); }
+        .toggle-btn:last-child { border-right: 1px solid var(--ink); }
+        .toggle-btn:hover { background: var(--paper-mid); }
+        .toggle-btn.active { background: var(--ink); color: var(--paper); }
 
         /* Map + Sidebar */
         .map-container {
@@ -88,8 +96,7 @@
         #map {
             height: 65vh;
             min-height: 450px;
-            border-radius: 12px;
-            box-shadow: var(--shadow);
+            border-radius: 0;
             position: relative;
         }
 
@@ -98,34 +105,42 @@
             position: absolute;
             bottom: 24px;
             left: 16px;
-            background: rgba(255,255,255,0.95);
-            border-radius: 8px;
+            background: var(--paper);
+            border: 1px solid var(--ink);
+            border-radius: 0;
             padding: 10px 14px;
-            box-shadow: var(--shadow);
             z-index: 2;
             font-size: 0.8rem;
         }
-        .legend-title { font-weight: 700; margin-bottom: 6px; }
+        .legend-title { font-weight: 700; margin-bottom: 6px; font-family: 'DM Sans', sans-serif; font-size: 9px; text-transform: uppercase; letter-spacing: 0.08em; }
         .legend-bar {
             width: 180px;
             height: 12px;
-            border-radius: 6px;
-            background: linear-gradient(to right, #d7191c, #f59e0b, #fbbf24, #34d399, #2563eb);
+            border-radius: 0;
+            background: linear-gradient(to right, #8b1a1a, #c8870e, #b8a060, #4a7a5a, #1a1a6e);
             margin-bottom: 4px;
         }
-        .legend-labels { display: flex; justify-content: space-between; font-size: 0.75rem; color: var(--text-secondary); }
+        .legend-labels { display: flex; justify-content: space-between; font-size: 0.75rem; color: var(--ink-muted); font-family: 'DM Sans', sans-serif; }
 
         /* Sidebar */
         .sidebar {
             height: 65vh;
             min-height: 450px;
             overflow-y: auto;
-            background: var(--card);
-            border-radius: 12px;
-            box-shadow: var(--shadow);
+            background: var(--paper);
+            border-radius: 0;
+            border-left: 1px solid var(--rule-soft);
             padding: 1.2rem;
         }
-        .sidebar h3 { font-size: 1.1rem; margin-bottom: 0.8rem; }
+        .sidebar h3 {
+            font-family: 'DM Sans', sans-serif;
+            font-size: 9px;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            border-bottom: 2px solid var(--ink);
+            padding-bottom: 4px;
+            margin-bottom: 0.8rem;
+        }
 
         /* Ranking list */
         .rank-item {
@@ -133,15 +148,16 @@
             align-items: center;
             gap: 0.7rem;
             padding: 0.6rem 0.5rem;
-            border-radius: 8px;
+            border-radius: 0;
             cursor: pointer;
             transition: background 0.15s;
         }
-        .rank-item:hover { background: #f1f5f9; }
+        .rank-item:hover { background: var(--paper-mid); }
         .rank-number {
             font-weight: 700;
             font-size: 0.85rem;
-            color: var(--text-secondary);
+            font-family: 'DM Sans', sans-serif;
+            color: var(--ink-muted);
             width: 26px;
             text-align: right;
             flex-shrink: 0;
@@ -149,25 +165,30 @@
         .rank-name { flex: 1; font-weight: 500; font-size: 0.95rem; }
         .rank-score {
             font-weight: 700;
-            font-size: 0.85rem;
-            padding: 0.2rem 0.6rem;
-            border-radius: 999px;
-            color: #fff;
+            font-size: 0.8rem;
+            font-family: 'DM Sans', sans-serif;
+            padding: 1px 6px;
+            border-radius: 0;
+            background: none !important;
+            border: 1.5px solid currentColor;
+            color: var(--ink);
         }
         .rank-rate {
             font-size: 0.75rem;
             font-weight: 600;
-            color: var(--text-secondary);
+            font-family: 'DM Sans', sans-serif;
+            color: var(--ink-muted);
             white-space: nowrap;
         }
         .stat-rank {
             font-size: 0.7rem;
             font-weight: 700;
+            font-family: 'DM Sans', sans-serif;
             margin-left: 0.3rem;
         }
         .rank-pop-warning {
             font-size: 0.7rem;
-            color: var(--text-secondary);
+            color: var(--ink-muted);
             font-style: italic;
         }
 
@@ -178,7 +199,7 @@
             align-items: center;
             gap: 0.3rem;
             font-size: 0.85rem;
-            color: var(--color-overall);
+            color: var(--ink);
             cursor: pointer;
             font-weight: 600;
             margin-bottom: 0.8rem;
@@ -208,13 +229,15 @@
             gap: 0.8rem;
         }
         .stat-card {
-            background: var(--bg);
-            border-radius: 10px;
+            background: var(--paper);
+            border-radius: 0;
+            border: none;
+            border-right: 1px solid var(--rule-soft);
             padding: 0.8rem 1rem;
         }
-        .stat-label { font-size: 0.8rem; color: var(--text-secondary); font-weight: 500; margin-bottom: 0.2rem; }
-        .stat-value { font-size: 1.3rem; font-weight: 700; }
-        .stat-sub { font-size: 0.75rem; color: var(--text-secondary); }
+        .stat-label { font-size: 0.8rem; color: var(--ink-muted); font-family: 'DM Sans', sans-serif; font-weight: 500; margin-bottom: 0.2rem; }
+        .stat-value { font-family: 'Playfair Display', serif; font-size: 1.5rem; font-weight: 900; }
+        .stat-sub { font-size: 0.75rem; color: var(--ink-muted); font-family: 'DM Sans', sans-serif; }
 
         .detail-bottom {
             display: grid;
@@ -228,16 +251,16 @@
             justify-content: space-between;
             padding: 0.35rem 0;
             font-size: 0.9rem;
-            border-bottom: 1px solid var(--border);
+            border-bottom: 1px solid var(--paper-dark);
         }
         .detail-list li:last-child { border-bottom: none; }
-        .detail-list .count { font-weight: 600; color: var(--text-secondary); }
+        .detail-list .count { font-weight: 600; font-family: 'DM Sans', sans-serif; color: var(--ink-muted); }
 
         .chart-container { position: relative; height: 260px; margin-bottom: 1rem; }
         .chart-container-sm { position: relative; height: 220px; }
 
-        .rank-item.selected { background: #e0e7ff; }
-        .rank-item.selected:hover { background: #e0e7ff; }
+        .rank-item.selected { background: var(--paper-mid); }
+        .rank-item.selected:hover { background: var(--paper-mid); }
 
         /* Comparison section */
         .section {
@@ -246,30 +269,33 @@
             padding: 0 2rem;
         }
         .section-card {
-            background: var(--card);
-            border-radius: 12px;
-            box-shadow: var(--shadow);
-            padding: 2rem;
+            background: var(--paper);
+            border-radius: 0;
+            box-shadow: none;
+            border-top: 2px solid var(--ink);
+            padding: 1.5rem 0;
         }
-        .section-card h2 { font-size: 1.5rem; margin-bottom: 0.3rem; }
-        .section-desc { color: var(--text-secondary); margin-bottom: 1.5rem; font-size: 0.95rem; }
+        .section-card h2 { font-family: 'Playfair Display', serif; font-size: 1.5rem; margin-bottom: 0.3rem; }
+        .section-desc { color: var(--ink-muted); margin-bottom: 1.5rem; font-size: 0.95rem; }
 
         .comparison-selectors {
             display: flex;
-            gap: 1rem;
+            gap: 0;
             margin-bottom: 1.5rem;
             flex-wrap: wrap;
         }
         .comparison-selectors select {
             padding: 0.5rem 1rem;
-            border: 2px solid var(--border);
-            border-radius: 8px;
-            font-family: inherit;
+            border: 1.5px solid var(--ink);
+            border-right: none;
+            border-radius: 0;
+            font-family: 'DM Sans', sans-serif;
             font-size: 0.9rem;
-            background: var(--card);
+            background: var(--paper);
             cursor: pointer;
             min-width: 200px;
         }
+        .comparison-selectors select:last-child { border-right: 1.5px solid var(--ink); }
         .comparison-body {
             display: grid;
             grid-template-columns: 300px 1fr;
@@ -282,13 +308,14 @@
             gap: 0.8rem;
         }
         .comp-stat {
-            background: var(--bg);
-            border-radius: 8px;
+            background: var(--paper);
+            border-radius: 0;
             padding: 0.8rem 1rem;
+            border-top: 1px solid var(--paper-dark);
         }
-        .comp-stat-label { font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 0.2rem; }
+        .comp-stat-label { font-size: 0.75rem; font-family: 'DM Sans', sans-serif; color: var(--ink-muted); margin-bottom: 0.2rem; }
         .comp-stat-values { display: flex; gap: 1rem; }
-        .comp-stat-val { font-weight: 700; font-size: 1rem; }
+        .comp-stat-val { font-weight: 700; font-size: 1rem; font-family: 'DM Sans', sans-serif; }
 
         /* Ranking table */
         .table-wrapper { overflow-x: auto; }
@@ -296,25 +323,31 @@
         thead th {
             text-align: left;
             padding: 0.7rem 0.8rem;
+            font-family: 'DM Sans', sans-serif;
+            font-size: 9px;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
             font-weight: 600;
-            color: var(--text-secondary);
-            border-bottom: 2px solid var(--border);
+            color: var(--ink-muted);
+            background: var(--paper);
+            border-top: 2px solid var(--ink);
+            border-bottom: 1.5px solid var(--ink);
             cursor: pointer;
             white-space: nowrap;
             user-select: none;
         }
-        thead th:hover { color: var(--text); }
+        thead th:hover { color: var(--ink); }
         thead th .sort-arrow { font-size: 0.7rem; margin-left: 0.3rem; }
         tbody tr {
-            border-bottom: 1px solid var(--border);
+            border-bottom: 0.5px solid var(--paper-dark);
             cursor: pointer;
             transition: background 0.15s;
         }
-        tbody tr:hover { background: #f8fafc; }
+        tbody tr:hover { background: var(--paper-mid); }
         td { padding: 0.6rem 0.8rem; }
         td.score-cell {
             font-weight: 700;
-            border-radius: 4px;
+            font-family: 'DM Sans', sans-serif;
         }
 
         /* Findings */
@@ -324,14 +357,15 @@
             gap: 1rem;
         }
         .finding-card {
-            background: var(--bg);
-            border-radius: 8px;
-            padding: 1.2rem;
-            border-left: 4px solid var(--color-overall);
+            background: var(--paper);
+            border-radius: 0;
+            padding: 1rem;
+            border-left: none;
+            border-top: 2px solid var(--ink);
         }
         .finding-card h4 { font-size: 0.95rem; margin-bottom: 0.3rem; }
-        .finding-stat { font-size: 1.8rem; font-weight: 900; font-family: 'DM Sans', sans-serif; margin-bottom: 0.3rem; }
-        .finding-desc { font-size: 0.85rem; color: var(--text-secondary); }
+        .finding-stat { font-family: 'Playfair Display', serif; font-size: 1.6rem; font-weight: 900; color: var(--ink); margin-bottom: 0.3rem; }
+        .finding-desc { font-size: 0.85rem; color: var(--ink-muted); }
 
         /* Methodology */
         .methodology details {
@@ -346,7 +380,7 @@
         .methodology .detail-content {
             padding: 0.5rem 0 0.5rem 1rem;
             font-size: 0.9rem;
-            color: var(--text-secondary);
+            color: var(--ink-muted);
             line-height: 1.7;
         }
 
@@ -356,18 +390,24 @@
             margin: 0 auto;
             padding: 2rem;
             text-align: center;
-            color: var(--text-secondary);
-            font-size: 0.85rem;
-            border-top: 1px solid var(--border);
+            color: var(--ink-muted);
+            font-family: 'DM Sans', sans-serif;
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            border-top: 4px double var(--ink);
+            background: var(--paper);
         }
-        .footer a { color: var(--color-overall); text-decoration: none; }
+        .footer a { color: var(--ink); text-decoration: none; }
         .footer a:hover { text-decoration: underline; }
 
-        /* Tooltip */
+        /* Map popup */
         .maplibregl-popup-content {
             padding: 8px 12px !important;
-            border-radius: 8px !important;
-            box-shadow: var(--shadow-lg) !important;
+            border-radius: 0 !important;
+            border: 1px solid var(--ink) !important;
+            box-shadow: 2px 2px 0 var(--ink) !important;
+            background: var(--paper) !important;
             font-family: 'DM Sans', sans-serif !important;
             font-size: 0.85rem !important;
         }
@@ -376,8 +416,8 @@
 
         /* Mobile */
         @media (max-width: 768px) {
-            .header { padding: 1.5rem 1rem 0.5rem; }
-            .header h1 { font-size: 1.6rem; }
+            .header { padding: 0.75rem 1rem; }
+            .header h1 { font-size: clamp(1.8rem, 8vw, 2.4rem); }
             .map-container {
                 grid-template-columns: 1fr;
                 padding: 0 1rem;
@@ -385,7 +425,7 @@
             #map { height: 50vh; min-height: 300px; }
             .sidebar { height: auto; max-height: 60vh; }
             .section { padding: 0 1rem; }
-            .section-card { padding: 1.2rem; }
+            .section-card { padding: 1.2rem 0; }
             .detail-top { grid-template-columns: 1fr; }
             .detail-stats-row { grid-template-columns: 1fr 1fr; }
             .detail-bottom { grid-template-columns: 1fr; }
@@ -400,6 +440,11 @@
 
 <!-- Header -->
 <header class="header">
+    <div style="background:#0d0d0d;color:#f5f0e8;display:flex;justify-content:space-between;padding:3px 2rem;font-family:'DM Sans',sans-serif;font-size:10px;letter-spacing:0.1em;text-transform:uppercase;margin:-1rem -2rem 0.5rem;">
+      <span>Vol. 1, No. 4 &middot; Q1 2025</span>
+      <span>Boston, Massachusetts</span>
+      <span>data.boston.gov &middot; Free</span>
+    </div>
     <h1>How Safe Is Your Boston Neighborhood?</h1>
     <p class="subtitle">An interactive look at crime, 311 complaints, crashes, and building violations across Boston's neighborhoods — built on city data from Analyze Boston.</p>
     <div class="toggles" id="toggles">
@@ -606,11 +651,11 @@ function fmt(n) {
 }
 
 function getScoreColor(score) {
-    if (score >= 75) return '#2563eb';
-    if (score >= 60) return '#34d399';
-    if (score >= 45) return '#fbbf24';
-    if (score >= 30) return '#f59e0b';
-    return '#d7191c';
+    if (score >= 75) return '#1a1a6e';
+    if (score >= 60) return '#0e4d3a';
+    if (score >= 45) return '#4a3800';
+    if (score >= 30) return '#7a3a00';
+    return '#8b1a1a';
 }
 
 function getRankColor(rank, total) {
@@ -622,11 +667,11 @@ function getRankColor(rank, total) {
 function buildColorExpression(field) {
     return [
         'interpolate', ['linear'], ['get', field],
-        0, '#d7191c',
-        25, '#f59e0b',
-        50, '#fbbf24',
-        75, '#34d399',
-        100, '#2563eb'
+        0,   '#8b1a1a',
+        25,  '#c8870e',
+        50,  '#b8a060',
+        75,  '#4a7a5a',
+        100, '#1a1a6e'
     ];
 }
 
@@ -696,14 +741,14 @@ function initMap(data) {
             id: 'neighborhoods-border',
             type: 'line',
             source: 'neighborhoods',
-            paint: { 'line-color': '#ffffff', 'line-width': 1.5 }
+            paint: { 'line-color': '#f5f0e8', 'line-width': 1.5 }
         });
 
         map.addLayer({
             id: 'neighborhoods-hover',
             type: 'line',
             source: 'neighborhoods',
-            paint: { 'line-color': '#1e293b', 'line-width': 3 },
+            paint: { 'line-color': '#0d0d0d', 'line-width': 3 },
             filter: ['==', 'canonical_name', '']
         });
 
@@ -832,8 +877,8 @@ function selectNeighborhood(name) {
 
     // Fun fact callout
     if (s.fun_fact) {
-        html += `<div style="background:#fef9ee; border-left:3px solid #c8870e; padding:12px 16px; border-radius:0 8px 8px 0; margin-bottom:20px; font-size:13px; color:#7a6530;">
-            <span style="font-weight:600;">Did you know?</span> ${s.fun_fact}
+        html += `<div style="background:#0d0d0d; color:#f5f0e8; border-left:none; border-radius:0; padding:8px 16px; margin-bottom:20px; font-size:13px; font-family:'IM Fell English',serif; font-style:italic;">
+            <span style="font-weight:600; font-style:normal;">Did you know?</span> ${s.fun_fact}
         </div>`;
     }
 
@@ -842,22 +887,22 @@ function selectNeighborhood(name) {
         <div class="chart-container"><canvas id="radarChart"></canvas></div>
         <div class="detail-stats-row">
             <div class="stat-card">
-                <div class="stat-label" style="color:var(--color-crime)">Crime <span class="stat-rank" style="color:${getRankColor(s.crime_rank, N)}">#${s.crime_rank}</span></div>
+                <div class="stat-label" style="color:#8b1a1a">Crime <span class="stat-rank" style="color:${getRankColor(s.crime_rank, N)}">#${s.crime_rank}</span></div>
                 <div class="stat-value">${fmt(s.crime_count)}</div>
                 <div class="stat-sub">${s.crime_per_1000} per 1K residents</div>
             </div>
             <div class="stat-card">
-                <div class="stat-label" style="color:var(--color-311)">311 <span class="stat-rank" style="color:${getRankColor(s.complaints_rank, N)}">#${s.complaints_rank}</span></div>
+                <div class="stat-label" style="color:#4a3800">311 <span class="stat-rank" style="color:${getRankColor(s.complaints_rank, N)}">#${s.complaints_rank}</span></div>
                 <div class="stat-value">${fmt(s.complaint_count)}</div>
                 <div class="stat-sub">${s.complaints_per_1000} per 1K residents</div>
             </div>
             <div class="stat-card">
-                <div class="stat-label" style="color:var(--color-crashes)">Crashes <span class="stat-rank" style="color:${getRankColor(s.crashes_rank, N)}">#${s.crashes_rank}</span></div>
+                <div class="stat-label" style="color:#0e4d3a">Crashes <span class="stat-rank" style="color:${getRankColor(s.crashes_rank, N)}">#${s.crashes_rank}</span></div>
                 <div class="stat-value">${fmt(s.crashes_count)}</div>
                 <div class="stat-sub">${s.crashes_per_1000} per 1K residents</div>
             </div>
             <div class="stat-card">
-                <div class="stat-label" style="color:var(--color-violations)">Violations <span class="stat-rank" style="color:${getRankColor(s.violations_rank, N)}">#${s.violations_rank}</span></div>
+                <div class="stat-label" style="color:#1a1a6e">Violations <span class="stat-rank" style="color:${getRankColor(s.violations_rank, N)}">#${s.violations_rank}</span></div>
                 <div class="stat-value">${fmt(s.violations_count)}</div>
                 <div class="stat-sub">${s.violations_per_1000} per 1K residents</div>
             </div>
@@ -933,10 +978,10 @@ function selectNeighborhood(name) {
             datasets: [{
                 label: name,
                 data: [s.crime_score, s.complaints_score, s.crashes_score, s.violations_score],
-                backgroundColor: 'rgba(37, 99, 235, 0.12)',
-                borderColor: '#2563eb',
+                backgroundColor: 'rgba(13,13,13,0.08)',
+                borderColor: '#0d0d0d',
                 borderWidth: 2,
-                pointBackgroundColor: '#2563eb',
+                pointBackgroundColor: '#0d0d0d',
                 pointRadius: 5,
             }]
         },
@@ -947,7 +992,8 @@ function selectNeighborhood(name) {
                 r: {
                     min: 0, max: 100,
                     ticks: { display: false },
-                    pointLabels: { font: { size: 12, family: 'DM Sans', weight: '600' } },
+                    grid: { color: 'rgba(13,13,13,0.1)' },
+                    pointLabels: { font: { size: 12, family: 'DM Sans', weight: '600' }, color: '#5a5a5a' },
                 }
             },
             plugins: { legend: { display: false } }
@@ -964,7 +1010,7 @@ function selectNeighborhood(name) {
                 labels: Array.from({length: 24}, (_, i) => i === 0 ? '12a' : i < 12 ? `${i}a` : i === 12 ? '12p' : `${i-12}p`),
                 datasets: [{
                     data: crime.by_hour,
-                    backgroundColor: 'rgba(220, 74, 58, 0.6)',
+                    backgroundColor: 'rgba(13,13,13,0.65)',
                     borderRadius: 3,
                 }]
             },
@@ -973,8 +1019,8 @@ function selectNeighborhood(name) {
                 maintainAspectRatio: false,
                 plugins: { legend: { display: false } },
                 scales: {
-                    x: { grid: { display: false }, ticks: { font: { size: 10 }, maxRotation: 0 } },
-                    y: { grid: { color: '#f1f5f9' }, ticks: { font: { size: 10 } } }
+                    x: { grid: { display: false }, ticks: { font: { size: 10 }, color: '#5a5a5a', maxRotation: 0 } },
+                    y: { grid: { color: 'rgba(13,13,13,0.1)' }, ticks: { font: { size: 10 }, color: '#5a5a5a' } }
                 }
             }
         });
@@ -1025,26 +1071,26 @@ function updateComparison() {
                 {
                     label: n1,
                     data: [s1.crime_score, s1.complaints_score, s1.crashes_score, s1.violations_score],
-                    backgroundColor: 'rgba(37, 99, 235, 0.12)',
-                    borderColor: '#2563eb',
+                    backgroundColor: 'rgba(13,13,13,0.08)',
+                    borderColor: '#0d0d0d',
                     borderWidth: 2,
-                    pointBackgroundColor: '#2563eb',
+                    pointBackgroundColor: '#0d0d0d',
                 },
                 {
                     label: n2,
                     data: [s2.crime_score, s2.complaints_score, s2.crashes_score, s2.violations_score],
-                    backgroundColor: 'rgba(220, 74, 58, 0.12)',
-                    borderColor: '#dc4a3a',
+                    backgroundColor: 'rgba(139,26,26,0.08)',
+                    borderColor: '#8b1a1a',
                     borderWidth: 2,
-                    pointBackgroundColor: '#dc4a3a',
+                    pointBackgroundColor: '#8b1a1a',
                 }
             ]
         },
         options: {
             responsive: true,
             maintainAspectRatio: false,
-            scales: { r: { min: 0, max: 100, ticks: { display: false } } },
-            plugins: { legend: { position: 'bottom', labels: { font: { family: 'DM Sans' } } } }
+            scales: { r: { min: 0, max: 100, ticks: { display: false }, grid: { color: 'rgba(13,13,13,0.1)' }, pointLabels: { color: '#5a5a5a', font: { family: 'DM Sans' } } } },
+            plugins: { legend: { position: 'bottom', labels: { font: { family: 'DM Sans' }, color: '#5a5a5a' } } }
         }
     });
 
@@ -1068,8 +1114,8 @@ function updateComparison() {
         html += `<div class="comp-stat">
             <div class="comp-stat-label">${st.label}</div>
             <div class="comp-stat-values">
-                <span class="comp-stat-val" style="color:#2563eb">${prefix}${fmt(v1)}${suffix}</span>
-                <span class="comp-stat-val" style="color:#dc4a3a">${prefix}${fmt(v2)}${suffix}</span>
+                <span class="comp-stat-val" style="color:#0d0d0d">${prefix}${fmt(v1)}${suffix}</span>
+                <span class="comp-stat-val" style="color:#8b1a1a">${prefix}${fmt(v2)}${suffix}</span>
             </div>
         </div>`;
     });
