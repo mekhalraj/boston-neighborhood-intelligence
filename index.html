@@ -98,7 +98,7 @@
             margin: 0 auto;
             padding: 0 2rem;
             display: grid;
-            grid-template-columns: 1fr 380px;
+            grid-template-columns: 1fr;
             gap: 1.5rem;
             margin-bottom: 2rem;
         }
@@ -618,7 +618,7 @@
             </div>
         </div>
     </div>
-    <div class="sidebar" id="sidebar">
+    <div class="sidebar" id="sidebar" style="display:none">
         <h3>Neighborhood Rankings</h3>
         <p style="font-size:0.8rem;color:var(--text-secondary);margin-bottom:0.6rem">Click a neighborhood to explore</p>
         <div id="rankingsContent"></div>
@@ -1088,10 +1088,14 @@ function selectNeighborhood(name) {
     const allOffenses = crime.top_offenses || [];
     const nonOther = allOffenses.filter(o => o.offense.toLowerCase() !== 'other');
     const filteredOffenses = nonOther.length ? nonOther : allOffenses;
+    const unlabelled = nonOther.length === 0;
     if (filteredOffenses.length) {
         html += `<h4>Top Crimes</h4><ul class="detail-list">`;
         filteredOffenses.forEach(o => {
-            html += `<li><span>${o.offense}</span><span class="count">${fmt(o.count)}</span></li>`;
+            const label = (unlabelled && o.offense.toLowerCase() === 'other')
+                ? `Other <em style="color:var(--ink-muted);font-size:0.85em;font-style:italic">(data not labelled)</em>`
+                : o.offense;
+            html += `<li><span>${label}</span><span class="count">${fmt(o.count)}</span></li>`;
         });
         html += `</ul>`;
     }
