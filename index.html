@@ -609,6 +609,7 @@
 <!-- Map + Sidebar -->
 <div class="map-container">
     <div id="map">
+        <div id="mapHint" style="position:absolute;top:12px;left:50%;transform:translateX(-50%);z-index:2;background:var(--paper);border:1px solid var(--ink);padding:5px 14px;font-family:'DM Sans',sans-serif;font-size:11px;letter-spacing:0.04em;color:var(--ink-soft);pointer-events:none;white-space:nowrap;">← Click any neighborhood to explore →</div>
         <div class="map-legend">
             <div class="legend-title">Neighborhood Safety</div>
             <div class="legend-bar"></div>
@@ -1023,6 +1024,8 @@ function renderRankings() {
 // =========================================================================
 function selectNeighborhood(name) {
     STATE.selectedNeighborhood = name;
+    const hint = document.getElementById('mapHint');
+    if (hint) hint.style.display = 'none';
     const data = STATE.data;
     const s = data.scores[name];
     if (!s) return;
