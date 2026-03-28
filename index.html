@@ -69,9 +69,9 @@
         /* Toggles */
         .toggles {
             display: flex;
-            justify-content: center;
+            justify-content: flex-start;
             flex-wrap: wrap;
-            margin-bottom: 1.5rem;
+            margin-bottom: 0;
         }
         .toggle-btn {
             padding: 0.4rem 1rem;
@@ -103,8 +103,8 @@
             margin-bottom: 2rem;
         }
         #map {
-            height: 65vh;
-            min-height: 450px;
+            height: 78vh;
+            min-height: 520px;
             border-radius: 0;
             position: relative;
         }
@@ -133,8 +133,8 @@
 
         /* Sidebar */
         .sidebar {
-            height: 65vh;
-            min-height: 450px;
+            height: 78vh;
+            min-height: 520px;
             overflow-y: auto;
             background: var(--paper);
             border-radius: 0;
@@ -431,7 +431,7 @@
                 grid-template-columns: 1fr;
                 padding: 0 1rem;
             }
-            #map { height: 50vh; min-height: 300px; }
+            #map { height: 60vh; min-height: 300px; }
             .sidebar { height: auto; max-height: 60vh; }
             .section { padding: 0 1rem; }
             .section-card { padding: 1.2rem 0; }
@@ -604,13 +604,6 @@
     <h1>Boston Neighborhood Intelligence</h1>
     <p class="header-deck">How Safe Is Your Boston Neighborhood?</p>
     <p class="subtitle">An interactive look at crime, 311 complaints, crashes, and building violations across Boston's neighborhoods — built on city data from Analyze Boston.</p>
-    <div class="toggles" id="toggles">
-        <button class="toggle-btn active" data-metric="overall">Overall Safety</button>
-        <button class="toggle-btn" data-metric="crime">Crime</button>
-        <button class="toggle-btn" data-metric="complaints">311 Complaints</button>
-        <button class="toggle-btn" data-metric="crashes">Crashes</button>
-        <button class="toggle-btn" data-metric="violations">Violations</button>
-    </div>
 </header>
 
 <!-- Map + Sidebar -->
@@ -629,6 +622,17 @@
         <h3>Neighborhood Rankings</h3>
         <p style="font-size:0.8rem;color:var(--text-secondary);margin-bottom:0.6rem">Click a neighborhood to explore</p>
         <div id="rankingsContent"></div>
+    </div>
+</div>
+
+<!-- Metric toggles -->
+<div style="max-width:1400px;margin:0 auto 1.5rem;padding:0 2rem;">
+    <div class="toggles" id="toggles">
+        <button class="toggle-btn active" data-metric="overall">Overall Safety</button>
+        <button class="toggle-btn" data-metric="crime">Crime</button>
+        <button class="toggle-btn" data-metric="complaints">311 Complaints</button>
+        <button class="toggle-btn" data-metric="crashes">Crashes</button>
+        <button class="toggle-btn" data-metric="violations">Violations</button>
     </div>
 </div>
 
@@ -1081,7 +1085,9 @@ function selectNeighborhood(name) {
 
     // Column 1: Top Crimes + Top Violations
     html += `<div class="detail-col">`;
-    const filteredOffenses = (crime.top_offenses || []).filter(o => o.offense.toLowerCase() !== 'other');
+    const allOffenses = crime.top_offenses || [];
+    const nonOther = allOffenses.filter(o => o.offense.toLowerCase() !== 'other');
+    const filteredOffenses = nonOther.length ? nonOther : allOffenses;
     if (filteredOffenses.length) {
         html += `<h4>Top Crimes</h4><ul class="detail-list">`;
         filteredOffenses.forEach(o => {
