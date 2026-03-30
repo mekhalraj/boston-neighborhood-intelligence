@@ -7,6 +7,7 @@ import json
 import os
 import sys
 import time
+from contextlib import contextmanager
 from io import StringIO
 
 import geopandas as gpd
@@ -97,6 +98,68 @@ NAME_ALIASES = {
     "Harbor Islands": None,  # exclude -- no residential population
     "Harbor Island": None,
 }
+
+
+# ---------------------------------------------------------------------------
+# Cambridge configuration
+# ---------------------------------------------------------------------------
+
+CAM_SOCRATA_BASE = "https://data.cambridgema.gov/resource"
+
+CAM_RESOURCES = {
+    "crime":   "xuad-73uj",   # Crime Reports (2009-present)
+    "311":     "2z9k-mv9g",   # Commonwealth Connect Service Requests (SeeClickFix)
+    "crashes": "ybny-g9cv",   # Police Department Crash Data - Updated
+    "permits": "qu2z-8suj",   # Building Permits: Addition/Alteration
+}
+
+CAM_NEIGHBORHOODS_URLS = [
+    "https://raw.githubusercontent.com/cambridgegis/cambridgegis_data/main/Boundary/CDD_Neighborhoods/BOUNDARY_CDDNeighborhoods.geojson",
+    "https://data.cambridgema.gov/api/geospatial/2iqn-k6m9?method=export&type=GeoJSON",
+]
+
+# Cambridge CDD defines 13 neighborhoods; populations from 2020 Census / MAPC estimates
+# "Agassiz" is part of Neighborhood Nine in the CDD classification
+# "The Port" and "Baldwin" are distinct CDD neighborhoods
+CAM_POPULATION = {
+    "Area 2/MIT":           7200,
+    "Baldwin":              8900,
+    "Cambridge Highlands":  2100,
+    "Cambridgeport":       11300,
+    "East Cambridge":      11800,
+    "Mid-Cambridge":       16400,
+    "Neighborhood Nine":    5800,
+    "North Cambridge":     16200,
+    "Riverside":            8400,
+    "Strawberry Hill":      3800,
+    "The Port":             9700,
+    "Wellington-Harrington": 9700,
+    "West Cambridge":       8100,
+}
+
+CAM_NAME_ALIASES = {
+    "Area 2/ MIT": "Area 2/MIT",
+    "Area 2 / MIT": "Area 2/MIT",
+    "Area II/MIT": "Area 2/MIT",
+    "Area II / MIT": "Area 2/MIT",
+    "Wellington Harrington": "Wellington-Harrington",
+    "Wellington - Harrington": "Wellington-Harrington",
+    "Neighborhood 9": "Neighborhood Nine",
+}
+
+CAM_DATA_DIR = os.path.join(DATA_DIR, "cambridge")
+
+
+@contextmanager
+def _cambridge_context():
+    """Temporarily swap globals so reused functions see Cambridge data."""
+    global POPULATION, NAME_ALIASES
+    orig_pop, orig_aliases = POPULATION, NAME_ALIASES
+    POPULATION, NAME_ALIASES = CAM_POPULATION, CAM_NAME_ALIASES
+    try:
+        yield
+    finally:
+        POPULATION, NAME_ALIASES = orig_pop, orig_aliases
 
 
 def normalize_neighborhood(name):
@@ -206,6 +269,105 @@ def download_geojson():
     gdf = gdf[gdf["canonical_name"].notna()].copy()
     print(f"  Canonical neighborhoods: {sorted(gdf['canonical_name'].unique())}")
     return gdf, r.json()
+
+
+def download_socrata(dataset_id, label, limit=50000):
+    """Download a dataset from Cambridge's Socrata SODA API with pagination."""
+    all_records = []
+    offset = 0
+    headers = {"User-Agent": "BostonNeighborhoodIntelligence/1.0"}
+    while True:
+        url = f"{CAM_SOCRATA_BASE}/{dataset_id}.json"
+        params = {"$limit": limit, "$offset": offset}
+        for attempt in range(3):
+            try:
+                print(f"  Downloading {label}: offset={offset}...")
+                r = requests.get(url, params=params, headers=headers, timeout=120)
+                r.raise_for_status()
+                data = r.json()
+                break
+            except Exception as e:
+                if attempt == 2:
+                    raise
+                print(f"  Retry {attempt+1} for {label}: {e}")
+                time.sleep(2 ** attempt)
+
+        # Socrata may return an error object instead of an array
+        if isinstance(data, dict) and ("error" in data or "message" in data):
+            raise RuntimeError(f"Socrata API error for {label}: {data}")
+
+        if not data:
+            break
+        all_records.extend(data)
+        print(f"  ... {len(all_records)} records so far")
+        if len(data) < limit:
+            break
+        offset += limit
+        time.sleep(0.3)  # be polite to Socrata
+
+    print(f"  {label}: {len(all_records)} total records downloaded")
+    return pd.DataFrame(all_records)
+
+
+def download_cambridge_geojson():
+    """Download Cambridge neighborhood boundaries GeoJSON."""
+    print("Downloading Cambridge neighborhood boundaries...")
+    raw = None
+    for url in CAM_NEIGHBORHOODS_URLS:
+        for attempt in range(3):
+            try:
+                print(f"  Trying {url[:80]}...")
+                r = requests.get(url, timeout=60)
+                r.raise_for_status()
+                raw = r.json()
+                break
+            except Exception as e:
+                if attempt == 2:
+                    print(f"  Failed: {e}")
+                else:
+                    print(f"  Retry {attempt+1}: {e}")
+                    time.sleep(2 ** attempt)
+        if raw and "features" in raw and len(raw["features"]) > 0:
+            break
+        raw = None
+
+    if not raw:
+        raise RuntimeError("Could not download Cambridge neighborhood GeoJSON from any URL")
+
+    gdf = gpd.GeoDataFrame.from_features(raw["features"], crs="EPSG:4326")
+
+    # Find the neighborhood name column (varies by source)
+    name_col = None
+    for candidate in ["NAME", "Name", "name", "NHOOD", "neighborhood", "Neighborhood", "NBHD"]:
+        if candidate in gdf.columns:
+            name_col = candidate
+            break
+    if name_col is None:
+        # Fall back to first string column
+        for col in gdf.columns:
+            if col != "geometry" and gdf[col].dtype == object:
+                name_col = col
+                break
+    if name_col is None:
+        raise RuntimeError(f"Cannot find neighborhood name column. Columns: {list(gdf.columns)}")
+
+    gdf["neighborhood"] = gdf[name_col].astype(str).str.strip()
+    print(f"  Cambridge neighborhoods found: {sorted(gdf['neighborhood'].unique())}")
+
+    gdf["canonical_name"] = gdf["neighborhood"].apply(normalize_neighborhood)
+    gdf = gdf[gdf["canonical_name"].notna()].copy()
+    print(f"  Canonical Cambridge neighborhoods: {sorted(gdf['canonical_name'].unique())}")
+
+    # Ensure raw GeoJSON features have "neighborhood" property for enrich_geojson
+    for feature in raw["features"]:
+        props = feature.get("properties", {})
+        if "neighborhood" not in props:
+            for candidate in ["NAME", "Name", "name", "NHOOD", "Neighborhood", "NBHD"]:
+                if candidate in props:
+                    feature["properties"]["neighborhood"] = props[candidate]
+                    break
+
+    return gdf, raw
 
 
 # ---------------------------------------------------------------------------
@@ -428,6 +590,262 @@ def clean_crashes(df):
     df = df[(df["lat"] != 0) & (df["long"] != 0)].copy()
 
     print(f"  Crashes after cleaning: {len(df)} records, years {df['year'].min()}-{df['year'].max()}")
+    return df
+
+
+# ---------------------------------------------------------------------------
+# Cambridge data cleaning functions
+# ---------------------------------------------------------------------------
+
+def _extract_location_coords(df, lat_col_names=None, lon_col_names=None):
+    """Extract lat/lon from Socrata location dict or flat columns."""
+    lat_col_names = lat_col_names or ["latitude", "lat"]
+    lon_col_names = lon_col_names or ["longitude", "lng", "lon", "long"]
+
+    df = df.copy()
+    df["_lat"] = np.nan
+    df["_lon"] = np.nan
+
+    # Try flat columns first
+    for col in lat_col_names:
+        if col in df.columns:
+            df["_lat"] = pd.to_numeric(df[col], errors="coerce")
+            break
+    for col in lon_col_names:
+        if col in df.columns:
+            df["_lon"] = pd.to_numeric(df[col], errors="coerce")
+            break
+
+    # Fall back to location dict
+    if "location" in df.columns and df["_lat"].isna().all():
+        def parse_loc(val):
+            if isinstance(val, dict):
+                return val
+            if isinstance(val, str):
+                try:
+                    import ast
+                    return ast.literal_eval(val)
+                except Exception:
+                    return {}
+            return {}
+
+        locs = df["location"].apply(parse_loc)
+        df["_lat"] = pd.to_numeric(locs.apply(lambda d: d.get("latitude")), errors="coerce")
+        df["_lon"] = pd.to_numeric(locs.apply(lambda d: d.get("longitude")), errors="coerce")
+
+    return df
+
+
+def clean_cambridge_crime(df):
+    """Clean Cambridge crime reports from Socrata."""
+    print("Cleaning Cambridge crime data...")
+    df.columns = df.columns.str.lower().str.strip()
+    print(f"  Crime columns: {list(df.columns)[:15]}")
+
+    # Parse date -- Cambridge uses date_of_report or crime_date_time
+    date_parsed = None
+    for col in ["date_of_report", "crime_date_time", "occurred_on_date", "date"]:
+        if col in df.columns:
+            date_parsed = pd.to_datetime(df[col], errors="coerce")
+            break
+    if date_parsed is None:
+        print(f"  WARNING: No date column found. Columns: {list(df.columns)}")
+        return pd.DataFrame()
+    df["date_parsed"] = date_parsed
+
+    df["year"] = df["date_parsed"].dt.year
+    df["month"] = df["date_parsed"].dt.month
+    df["hour"] = df["date_parsed"].dt.hour
+    df["day_of_week"] = df["date_parsed"].dt.day_name()
+
+    df = df[(df["year"] >= YEAR_MIN) & (df["year"] <= YEAR_MAX)].copy()
+
+    # Offense group -- Cambridge uses "crime" column
+    for col in ["crime", "offense", "crime_type", "offense_description"]:
+        if col in df.columns:
+            df["offense_group"] = df[col].fillna("Other")
+            break
+    if "offense_group" not in df.columns:
+        df["offense_group"] = "Other"
+
+    df["shooting"] = False
+
+    # Coordinates -- Cambridge uses reporting_area_lat/reporting_area_lon
+    df = _extract_location_coords(
+        df,
+        lat_col_names=["reporting_area_lat", "latitude", "lat"],
+        lon_col_names=["reporting_area_lon", "longitude", "lng", "lon", "long"],
+    )
+    df["lat"] = df["_lat"]
+    df["lon"] = df["_lon"]
+    df = df.drop(columns=["_lat", "_lon"])
+    df = df[(df["lat"].notna()) & (df["lon"].notna())].copy()
+    df = df[(df["lat"] != 0) & (df["lon"] != 0)].copy()
+    # Cambridge bounds
+    df = df[(df["lat"] > 42.34) & (df["lat"] < 42.42) & (df["lon"] > -71.17) & (df["lon"] < -71.05)].copy()
+
+    # Cambridge crime data has a neighborhood column -- normalize it
+    if "neighborhood" in df.columns:
+        df["neighborhood"] = df["neighborhood"].apply(normalize_neighborhood)
+
+    print(f"  Cambridge crime after cleaning: {len(df)} records")
+    return df
+
+
+def clean_cambridge_311(df):
+    """Clean Cambridge 311/SeeClickFix requests from Socrata."""
+    print("Cleaning Cambridge 311 data...")
+    df.columns = df.columns.str.lower().str.strip()
+
+    # Parse open date -- Cambridge uses ticket_created_date_time
+    for col in ["ticket_created_date_time", "created", "requested_datetime", "open_date", "open_dt"]:
+        if col in df.columns:
+            df["open_date_parsed"] = pd.to_datetime(df[col], errors="coerce")
+            break
+    if "open_date_parsed" not in df.columns:
+        print(f"  WARNING: No date column found. Columns: {list(df.columns)}")
+        return pd.DataFrame()
+
+    df["year"] = df["open_date_parsed"].dt.year
+    df["month"] = df["open_date_parsed"].dt.month
+    df["day_of_week"] = df["open_date_parsed"].dt.day_name()
+    df["hour"] = df["open_date_parsed"].dt.hour
+
+    df = df[(df["year"] >= YEAR_MIN) & (df["year"] <= YEAR_MAX)].copy()
+
+    # Category -- Cambridge uses issue_type
+    for col in ["issue_type", "service_name", "category", "department"]:
+        if col in df.columns:
+            df["category"] = df[col].fillna("Unknown")
+            break
+    if "category" not in df.columns:
+        df["category"] = "Unknown"
+
+    # Close date and response time -- Cambridge uses ticket_last_updated_date_time
+    for col in ["ticket_last_updated_date_time", "updated_datetime", "closed_datetime", "close_date", "closed_dt"]:
+        if col in df.columns:
+            df["close_date_parsed"] = pd.to_datetime(df[col], errors="coerce")
+            break
+    if "close_date_parsed" in df.columns:
+        # Only compute for closed/resolved requests
+        status_col = None
+        for col in ["ticket_status", "status"]:
+            if col in df.columns:
+                status_col = col
+                break
+        if status_col:
+            closed_mask = df[status_col].astype(str).str.lower().str.contains("closed|resolved|completed|archived", na=False)
+            df.loc[~closed_mask, "close_date_parsed"] = pd.NaT
+        df["response_hours"] = (
+            df["close_date_parsed"] - df["open_date_parsed"]
+        ).dt.total_seconds() / 3600
+        df.loc[df["response_hours"] < 0, "response_hours"] = np.nan
+        df.loc[df["response_hours"] > 8760, "response_hours"] = np.nan
+
+    # Coordinates -- Cambridge uses lat/lng
+    df = _extract_location_coords(df, lat_col_names=["lat", "latitude"], lon_col_names=["lng", "longitude", "lon", "long"])
+    df["latitude"] = df["_lat"]
+    df["longitude"] = df["_lon"]
+    df = df.drop(columns=["_lat", "_lon"])
+
+    # Use existing neighborhood field if present, otherwise create empty one
+    if "neighborhood" in df.columns:
+        df["neighborhood_orig"] = df["neighborhood"]
+        df["neighborhood"] = df["neighborhood"].apply(normalize_neighborhood)
+    else:
+        df["neighborhood"] = np.nan
+
+    print(f"  Cambridge 311 after cleaning: {len(df)} records")
+    return df
+
+
+def clean_cambridge_crashes(df):
+    """Clean Cambridge crash data from Socrata."""
+    print("Cleaning Cambridge crash data...")
+    df.columns = df.columns.str.lower().str.strip()
+
+    # Parse date
+    date_parsed = None
+    for col in ["date_time", "date_of_crash", "crash_date_time", "date"]:
+        if col in df.columns:
+            date_parsed = pd.to_datetime(df[col], errors="coerce")
+            break
+    if date_parsed is None:
+        print(f"  WARNING: No date column found. Columns: {list(df.columns)}")
+        return pd.DataFrame()
+    df["date_parsed"] = date_parsed
+
+    df["year"] = df["date_parsed"].dt.year
+    df["month"] = df["date_parsed"].dt.month
+    df["hour"] = df["date_parsed"].dt.hour
+    df["day_of_week"] = df["date_parsed"].dt.day_name()
+
+    df = df[(df["year"] >= YEAR_MIN) & (df["year"] <= YEAR_MAX)].copy()
+
+    # Mode detection: Cambridge uses object_1/object_2 columns (e.g. "Pedestrian", "Bicycle")
+    df["mode"] = "mv"
+    # Check object_1 and object_2 for pedestrian/bicycle involvement
+    for col in ["object_1", "object_2"]:
+        if col in df.columns:
+            vals = df[col].fillna("").str.lower()
+            df.loc[vals.str.contains("ped"), "mode"] = "ped"
+            df.loc[vals.str.contains("bic|cycl"), "mode"] = "bike"
+    # Also check for boolean/flag columns
+    ped_cols = [c for c in df.columns if "pedestrian" in c.lower() or "ped" == c.lower()]
+    bike_cols = [c for c in df.columns if "bicycle" in c.lower() or "cyclist" in c.lower() or "bike" == c.lower()]
+    for col in ped_cols:
+        mask = df[col].astype(str).str.lower().isin(["true", "1", "yes", "y"])
+        df.loc[mask, "mode"] = "ped"
+    for col in bike_cols:
+        mask = df[col].astype(str).str.lower().isin(["true", "1", "yes", "y"])
+        df.loc[mask, "mode"] = "bike"
+    # Also check a single mode_type column
+    if "mode_type" in df.columns:
+        mt = df["mode_type"].fillna("").str.lower().str.strip()
+        df.loc[mt.str.contains("ped"), "mode"] = "ped"
+        df.loc[mt.str.contains("bik|cycl"), "mode"] = "bike"
+
+    # Coordinates
+    df = _extract_location_coords(df)
+    df["lat"] = df["_lat"]
+    df["long"] = df["_lon"]
+    df = df.drop(columns=["_lat", "_lon"])
+    df = df[(df["lat"].notna()) & (df["long"].notna())].copy()
+    df = df[(df["lat"] != 0) & (df["long"] != 0)].copy()
+
+    print(f"  Cambridge crashes after cleaning: {len(df)} records")
+    return df
+
+
+def clean_cambridge_permits(df):
+    """Clean Cambridge building permits (used as violations proxy) from Socrata."""
+    print("Cleaning Cambridge permits data...")
+    df.columns = df.columns.str.lower().str.strip()
+
+    # Parse date
+    for col in ["issue_date", "issued_date", "permit_date", "date_issued", "applicant_submit_date", "date"]:
+        if col in df.columns:
+            df["date_parsed"] = pd.to_datetime(df[col], errors="coerce")
+            break
+    if "date_parsed" in df.columns:
+        df["year"] = df["date_parsed"].dt.year
+        df["month"] = df["date_parsed"].dt.month
+        df = df[(df["year"] >= YEAR_MIN) & (df["year"] <= YEAR_MAX)].copy()
+    else:
+        print(f"  WARNING: No date column found. Columns: {list(df.columns)}")
+
+    # Coordinates
+    df = _extract_location_coords(df)
+    df["latitude"] = df["_lat"]
+    df["longitude"] = df["_lon"]
+    df = df.drop(columns=["_lat", "_lon"])
+    df = df[(df["latitude"].notna()) & (df["longitude"].notna())].copy()
+    df = df[(df["latitude"] != 0) & (df["longitude"] != 0)].copy()
+
+    # Set violation_desc for compatibility with aggregate_violations
+    df["violation_desc"] = "Building Permit"
+
+    print(f"  Cambridge permits after cleaning: {len(df)} records")
     return df
 
 
@@ -937,6 +1355,152 @@ def export_json(data, filename):
     print(f"  Exported {filename}: {size_kb:.1f} KB")
 
 
+def export_json_to(data, filename, subdir):
+    """Write JSON file to a subdirectory with compact formatting."""
+    dirpath = os.path.join(DATA_DIR, subdir)
+    os.makedirs(dirpath, exist_ok=True)
+    filepath = os.path.join(dirpath, filename)
+    with open(filepath, "w") as f:
+        json.dump(data, f, separators=(",", ":"))
+    size_kb = os.path.getsize(filepath) / 1024
+    print(f"  Exported {subdir}/{filename}: {size_kb:.1f} KB")
+
+
+# ---------------------------------------------------------------------------
+# Cambridge pipeline
+# ---------------------------------------------------------------------------
+
+def run_cambridge():
+    """Run the full Cambridge data pipeline."""
+    os.makedirs(CAM_DATA_DIR, exist_ok=True)
+
+    with _cambridge_context():
+        # 1. Download Cambridge neighborhood boundaries
+        cam_gdf, cam_raw_geojson = download_cambridge_geojson()
+
+        geo_names = set(cam_gdf["canonical_name"].unique())
+        pop_names = set(CAM_POPULATION.keys())
+        missing_in_geo = pop_names - geo_names
+        extra_in_geo = geo_names - pop_names
+        if missing_in_geo:
+            print(f"\n  WARNING: In CAM_POPULATION but not in GeoJSON: {missing_in_geo}")
+        if extra_in_geo:
+            print(f"\n  WARNING: In GeoJSON but not in CAM_POPULATION: {extra_in_geo}")
+
+        # 2. Download datasets from Socrata
+        print("\n--- Downloading Cambridge datasets ---")
+        df_crime = download_socrata(CAM_RESOURCES["crime"], "Cambridge Crime")
+        df_311 = download_socrata(CAM_RESOURCES["311"], "Cambridge 311")
+        df_crashes = download_socrata(CAM_RESOURCES["crashes"], "Cambridge Crashes")
+        df_permits = download_socrata(CAM_RESOURCES["permits"], "Cambridge Permits")
+
+        # 3. Clean
+        print("\n--- Cleaning Cambridge data ---")
+        df_crime = clean_cambridge_crime(df_crime)
+        df_311 = clean_cambridge_311(df_311)
+        df_crashes = clean_cambridge_crashes(df_crashes)
+        df_permits = clean_cambridge_permits(df_permits)
+
+        if df_311.empty and df_crime.empty:
+            print("\nWARNING: Both Cambridge 311 and crime datasets are empty. Skipping Cambridge.")
+            return
+
+        # 4. Spatial join
+        print("\n--- Cambridge spatial joins ---")
+        if not df_311.empty:
+            df_311 = assign_neighborhoods_311(df_311, cam_gdf)
+        if not df_crime.empty:
+            # Cambridge crime has a neighborhood column -- use it where valid,
+            # spatial join only for records missing it (same pattern as 311)
+            if "neighborhood" in df_crime.columns:
+                has_hood = df_crime["neighborhood"].notna() & df_crime["neighborhood"].isin(CAM_POPULATION.keys())
+                df_with = df_crime[has_hood].copy()
+                df_without = df_crime[~has_hood].copy()
+                if not df_without.empty and "lat" in df_without.columns:
+                    valid_coords = df_without["lat"].notna() & df_without["lon"].notna()
+                    df_need_join = df_without[valid_coords].copy()
+                    if not df_need_join.empty:
+                        df_joined = spatial_join(df_need_join, cam_gdf, "lat", "lon")
+                        df_without = pd.concat([df_joined, df_without[~valid_coords]], ignore_index=True)
+                df_crime = pd.concat([df_with, df_without], ignore_index=True)
+                df_crime = df_crime[df_crime["neighborhood"].notna() & df_crime["neighborhood"].isin(CAM_POPULATION.keys())]
+                print(f"  Crime after neighborhood assignment: {len(df_crime)} records")
+            else:
+                df_crime = spatial_join(df_crime, cam_gdf, "lat", "lon")
+        if not df_permits.empty:
+            df_permits = spatial_join(df_permits, cam_gdf, "latitude", "longitude")
+        if not df_crashes.empty:
+            df_crashes = spatial_join(df_crashes, cam_gdf, "lat", "long")
+
+        # Filter to canonical Cambridge neighborhoods
+        for name, dfx in [("crime", df_crime), ("permits", df_permits), ("crashes", df_crashes)]:
+            if dfx.empty:
+                continue
+            valid = dfx["neighborhood"].isin(CAM_POPULATION.keys())
+            invalid_hoods = dfx[~valid]["neighborhood"].unique()
+            if len(invalid_hoods) > 0:
+                print(f"  {name}: dropping {(~valid).sum()} records from unknown neighborhoods: {list(invalid_hoods)[:5]}")
+
+        if not df_crime.empty:
+            df_crime = df_crime[df_crime["neighborhood"].isin(CAM_POPULATION.keys())].copy()
+        if not df_permits.empty:
+            df_permits = df_permits[df_permits["neighborhood"].isin(CAM_POPULATION.keys())].copy()
+        if not df_crashes.empty:
+            df_crashes = df_crashes[df_crashes["neighborhood"].isin(CAM_POPULATION.keys())].copy()
+
+        # 5. Aggregate
+        print("\n--- Aggregating Cambridge data ---")
+        agg_311 = aggregate_311(df_311) if not df_311.empty else {}
+        agg_crime = aggregate_crime(df_crime) if not df_crime.empty else {}
+        agg_crashes = aggregate_crashes(df_crashes) if not df_crashes.empty else {}
+        agg_violations = aggregate_violations(df_permits) if not df_permits.empty else {}
+
+        # 6. Compute scores
+        print("\n--- Computing Cambridge scores ---")
+        scores = compute_safety_scores(agg_311, agg_crime, agg_crashes, agg_violations)
+
+        # 7. Generate fun facts
+        print("\n--- Generating Cambridge fun facts ---")
+        generate_fun_facts(scores, agg_311, agg_crime, agg_crashes, agg_violations)
+
+        # Post-process: replace "Boston" with "Cambridge" in fun facts
+        for hood in scores:
+            if "fun_fact" in scores[hood]:
+                scores[hood]["fun_fact"] = scores[hood]["fun_fact"].replace("Boston", "Cambridge")
+
+        # Print Cambridge rankings
+        print("\n--- Cambridge Safety Score Rankings ---")
+        ranked = sorted(scores.items(), key=lambda x: x[1]["rank"])
+        for hood, s in ranked:
+            flag = " *" if s["small_pop_warning"] else ""
+            print(f"  #{s['rank']:2d} {hood:30s} Overall: {s['overall_score']:5.1f}  "
+                  f"Crime: {s['crime_score']:5.1f}  311: {s['complaints_score']:5.1f}  "
+                  f"Crashes: {s['crashes_score']:5.1f}  Violations: {s['violations_score']:5.1f}{flag}")
+
+        # 8. Enrich GeoJSON
+        enriched = enrich_geojson(cam_raw_geojson, scores)
+
+    # 9. Export to data/cambridge/
+    print("\n--- Exporting Cambridge data ---")
+    export_json_to(scores, "safety_scores.json", "cambridge")
+    export_json_to(agg_311, "311_summary.json", "cambridge")
+    export_json_to(agg_crime, "crime_summary.json", "cambridge")
+    export_json_to(agg_crashes, "crashes_summary.json", "cambridge")
+    export_json_to(agg_violations, "violations_summary.json", "cambridge")
+    export_json_to(enriched, "neighborhoods.geojson", "cambridge")
+
+    # Verify files
+    for fname in ["safety_scores.json", "311_summary.json", "crime_summary.json",
+                   "crashes_summary.json", "violations_summary.json", "neighborhoods.geojson"]:
+        fpath = os.path.join(CAM_DATA_DIR, fname)
+        if os.path.exists(fpath) and os.path.getsize(fpath) > 0:
+            print(f"  OK: cambridge/{fname} ({os.path.getsize(fpath) / 1024:.1f} KB)")
+        else:
+            print(f"  MISSING or EMPTY: cambridge/{fname}")
+
+    print("\nCambridge pipeline complete!")
+
+
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
@@ -1068,7 +1632,19 @@ def main():
         if f.endswith((".json", ".geojson"))
     )
     print(f"\n  Total data size: {total_kb:.1f} KB")
-    print("\nDone!")
+    print("\nDone with Boston pipeline!")
+
+    # --- Cambridge pipeline ---
+    print("\n" + "=" * 60)
+    print("=== Running Cambridge pipeline ===")
+    print("=" * 60)
+    try:
+        run_cambridge()
+    except Exception as e:
+        print(f"\nCambridge pipeline failed: {e}")
+        import traceback
+        traceback.print_exc()
+        print("Boston data is unaffected.")
 
 
 if __name__ == "__main__":
