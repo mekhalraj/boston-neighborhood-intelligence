@@ -78,8 +78,54 @@ WEIGHTS = {"crime": 0.40, "complaints": 0.25, "crashes": 0.20, "violations": 0.1
 SMALL_POP_THRESHOLD = 5000
 
 # Year filter -- use most recent 2 full years of data
-YEAR_MIN = 2023
+YEAR_MIN = 2024
 YEAR_MAX = 2025
+
+# Map granular OFFENSE_DESCRIPTION values to broader groups (prefix match)
+OFFENSE_GROUP_MAP = {
+    "AUTO THEFT": "Motor Vehicle Theft",
+    "M/V": "Motor Vehicle Incident",
+    "TOWED": "Motor Vehicle Incident",
+    "VAL -": "Motor Vehicle Incident",
+    "LARCENY": "Larceny / Theft",
+    "ASSAULT": "Assault",
+    "INVESTIGATE": "Investigation",
+    "SICK": "Medical Assist",
+    "VANDALISM": "Vandalism",
+    "DRUG": "Drug Offense",
+    "PROPERTY": "Property Crime",
+    "VERBAL": "Disturbance",
+    "THREAT": "Harassment / Threats",
+    "HARASSMENT": "Harassment / Threats",
+    "FRAUD": "Fraud",
+    "FORGERY": "Fraud",
+    "COUNTERFEITING": "Fraud",
+    "ROBBERY": "Robbery",
+    "BURGLARY": "Burglary",
+    "MISSING": "Missing Person",
+    "WARRANT": "Warrant Arrest",
+    "DISORDERLY": "Disorderly Conduct",
+    "DISTURBING": "Disorderly Conduct",
+    "TRESPASS": "Trespassing",
+    "WEAPON": "Weapons Violation",
+    "FIREARM": "Weapons Violation",
+    "DOMESTIC": "Domestic Disturbance",
+    "FIRE": "Arson",
+    "ARSON": "Arson",
+}
+# Sort by longest prefix first so "AUTO THEFT" matches before "A..."
+_OFFENSE_PREFIXES = sorted(OFFENSE_GROUP_MAP.keys(), key=len, reverse=True)
+
+
+def _map_offense_desc(desc):
+    """Map a granular OFFENSE_DESCRIPTION to a broader offense group."""
+    if not desc or not isinstance(desc, str):
+        return "Other"
+    upper = desc.strip().upper()
+    for prefix in _OFFENSE_PREFIXES:
+        if upper.startswith(prefix):
+            return OFFENSE_GROUP_MAP[prefix]
+    return "Other"
 
 
 # ---------------------------------------------------------------------------
@@ -471,27 +517,26 @@ def clean_crime(df):
 
     dow_col = col_map.get("DAY_OF_WEEK", "DAY_OF_WEEK")
     if dow_col in df.columns:
-        df["day_of_week"] = df[dow_col]
+        df["day_of_week"] = df[dow_col].astype(str).str.strip()
     else:
         df["day_of_week"] = df["date_parsed"].dt.day_name()
 
     df["month"] = df["date_parsed"].dt.month
 
-    # Offense group
+    # Offense group — prefer OFFENSE_CODE_GROUP if it has data, else map OFFENSE_DESCRIPTION
     offense_col = col_map.get("OFFENSE_CODE_GROUP", "OFFENSE_CODE_GROUP")
-    if offense_col in df.columns:
+    desc_col = col_map.get("OFFENSE_DESCRIPTION", "OFFENSE_DESCRIPTION")
+    if offense_col in df.columns and df[offense_col].notna().any():
         df["offense_group"] = df[offense_col].fillna("Other")
+    elif desc_col in df.columns:
+        df["offense_group"] = df[desc_col].apply(_map_offense_desc)
     else:
-        desc_col = col_map.get("OFFENSE_DESCRIPTION", "OFFENSE_DESCRIPTION")
-        if desc_col in df.columns:
-            df["offense_group"] = df[desc_col].fillna("Other")
-        else:
-            df["offense_group"] = "Other"
+        df["offense_group"] = "Other"
 
-    # Shooting
+    # Shooting — handle both "Y"/"N" strings and 0/1 integers
     shooting_col = col_map.get("SHOOTING", "SHOOTING")
     if shooting_col in df.columns:
-        df["shooting"] = df[shooting_col].astype(str).str.upper().str.strip() == "Y"
+        df["shooting"] = df[shooting_col].astype(str).str.upper().str.strip().isin(["Y", "1", "TRUE"])
     else:
         df["shooting"] = False
 
@@ -982,7 +1027,7 @@ def aggregate_crime(df):
         # By day of week
         day_order = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
         by_day = {}
-        day_counts = group["day_of_week"].value_counts()
+        day_counts = group["day_of_week"].value_counts().to_dict()
         for d in day_order:
             by_day[d] = int(day_counts.get(d, 0))
 
@@ -1252,10 +1297,8 @@ def generate_fun_facts(scores, agg_311, agg_crime, agg_crashes, agg_violations):
         # --- Rule 5: Year-over-year crime trend (>10% change) ---
         by_year = agg_crime.get(hood, {}).get("by_year", {})
         years_sorted = sorted(by_year.keys())
-        if len(years_sorted) >= 3:
-            first_year, last_year = years_sorted[0], years_sorted[-2]
-        elif len(years_sorted) == 2:
-            first_year, last_year = years_sorted[0], years_sorted[1]
+        if len(years_sorted) >= 2:
+            first_year, last_year = years_sorted[0], years_sorted[-1]
         else:
             first_year, last_year = None, None
         if first_year and last_year and by_year.get(first_year, 0) > 0:

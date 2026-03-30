@@ -1286,7 +1286,7 @@ function buildNcCol(name, s, n311, crime, crashes, isB) {
     const years = Object.keys(byYear).sort();
     let yoyText = '\u2014'; let yoyClass = '';
     if (years.length >= 2) {
-        const first = byYear[years[0]]; const last = byYear[years[years.length - 2]];
+        const first = byYear[years[0]]; const last = byYear[years[years.length - 1]];
         if (first > 0) {
             const pct = Math.round(((last - first) / first) * 100);
             yoyText = (pct >= 0 ? '+' : '') + pct + '%';
@@ -1420,7 +1420,7 @@ function setupTableSort() {
                 STATE.sortAsc = !STATE.sortAsc;
             } else {
                 STATE.sortColumn = col;
-                STATE.sortAsc = col === 'name' ? true : true;
+                STATE.sortAsc = col === 'name';
             }
             renderTable();
         });
@@ -1444,8 +1444,9 @@ function renderFindings() {
         color: 'var(--color-overall)',
     });
 
-    // Highest crime per capita (exclude small pop)
-    const highCrime = entries.filter(([,s]) => !s.small_pop_warning).reduce((a, b) => a[1].crime_per_1000 > b[1].crime_per_1000 ? a : b);
+    // Highest crime per capita (exclude small pop, fallback to all)
+    const crimePool = entries.filter(([,s]) => !s.small_pop_warning);
+    const highCrime = (crimePool.length ? crimePool : entries).reduce((a, b) => a[1].crime_per_1000 > b[1].crime_per_1000 ? a : b);
     findings.push({
         title: 'Highest Crime Rate',
         stat: `${highCrime[1].crime_per_1000}/1K`,
@@ -1454,7 +1455,8 @@ function renderFindings() {
     });
 
     // Most 311 complaints per capita
-    const high311 = entries.filter(([,s]) => !s.small_pop_warning).reduce((a, b) => a[1].complaints_per_1000 > b[1].complaints_per_1000 ? a : b);
+    const n311Pool = entries.filter(([,s]) => !s.small_pop_warning);
+    const high311 = (n311Pool.length ? n311Pool : entries).reduce((a, b) => a[1].complaints_per_1000 > b[1].complaints_per_1000 ? a : b);
     findings.push({
         title: 'Most 311 Complaints',
         stat: `${high311[1].complaints_per_1000}/1K`,
@@ -1463,7 +1465,8 @@ function renderFindings() {
     });
 
     // Most crashes per capita
-    const highCrash = entries.filter(([,s]) => !s.small_pop_warning).reduce((a, b) => a[1].crashes_per_1000 > b[1].crashes_per_1000 ? a : b);
+    const crashPool = entries.filter(([,s]) => !s.small_pop_warning);
+    const highCrash = (crashPool.length ? crashPool : entries).reduce((a, b) => a[1].crashes_per_1000 > b[1].crashes_per_1000 ? a : b);
     findings.push({
         title: 'Highest Crash Rate',
         stat: `${highCrash[1].crashes_per_1000}/1K`,
